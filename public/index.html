@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COSMAX NEWS MONITOR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0B0B0B;
+      --surface:    #141414;
+      --surface2:   #1C1C1C;
+      --border:     #242424;
+      --border2:    #2E2E2E;
+      --text:       #E4E4E4;
+      --text-sub:   #999;
+      --text-muted: #555;
+      --text-dim:   #333;
+      --red:        #EF1D26;
+      --red-glow:   rgba(239, 29, 38, 0.18);
+      --green:      #00C67A;
+      --green-glow: rgba(0, 198, 122, 0.12);
+      --yellow:     #F5A623;
+      --mono:       'IBM Plex Mono', monospace;
+      --sans:       'Noto Sans KR', sans-serif;
+      --display:    'Bebas Neue', sans-serif;
+    }
+
+    html { font-size: 14px; scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ═══ TOP BAR ════════════════════════════════════════════════ */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 52px;
+      background: rgba(11, 11, 11, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 20px;
+      z-index: 200;
+    }
+
+    .logo {
+      font-family: var(--display);
+      font-size: 19px;
+      letter-spacing: 0.1em;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .logo-accent { color: var(--red); }
+    .logo-sep {
+      width: 1px; height: 14px;
+      background: var(--border2);
+      margin: 0 10px;
+    }
+    .logo-sub {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    /* Live indicator */
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    .live-dot.on  { background: var(--green); animation: blink 2s ease-in-out infinite; }
+    .live-dot.err { background: var(--yellow); }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    .live-text {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      transition: color 0.3s;
+    }
+    .live-text.on  { color: var(--green); }
+    .live-text.err { color: var(--yellow); }
+
+    /* Top-bar stats */
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-left: auto;
+    }
+
+    .stat-chip {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+    }
+    .stat-val {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      min-width: 2ch;
+      text-align: right;
+      transition: color 0.3s;
+    }
+    .stat-val.bump { color: var(--green); }
+    .stat-lbl {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .pipe { width: 1px; height: 14px; background: var(--border2); }
+
+    .notif-toggle {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: none;
+      border: 1px solid var(--border2);
+      border-radius: 3px;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .notif-toggle:hover          { border-color: var(--red); color: var(--red); }
+    .notif-toggle.granted        { border-color: var(--green); color: var(--green); }
+    .notif-toggle .notif-icon    { font-size: 11px; }
+
+    /* ═══ MAIN ═══════════════════════════════════════════════════ */
+    .main {
+      padding: 68px 20px 60px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* ═══ DEMO BANNER ════════════════════════════════════════════ */
+    .demo-banner {
+      display: none;
+      align-items: flex-start;
+      gap: 10px;
+      background: var(--red-glow);
+      border: 1px solid rgba(239, 29, 38, 0.22);
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin: 16px 0 12px;
+      font-size: 12px;
+      color: var(--text-sub);
+      line-height: 1.6;
+    }
+    .demo-banner.show { display: flex; }
+    .demo-banner-icon { color: var(--red); font-size: 13px; margin-top: 1px; flex-shrink: 0; }
+    .demo-banner strong { color: var(--text); }
+    .demo-banner code {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: rgba(255,255,255,0.06);
+      padding: 1px 5px;
+      border-radius: 2px;
+    }
+
+    /* ═══ CONTROLS ═══════════════════════════════════════════════ */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 16px 0 10px;
+      flex-wrap: wrap;
+    }
+
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+    .tab {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 5px 11px;
+      border-radius: 2px;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .tab:hover:not(.active) { color: var(--text); }
+    .tab.active             { background: var(--red); color: #fff; }
+
+    .search-wrap {
+      flex: 1;
+      min-width: 180px;
+      position: relative;
+    }
+    .search-ico {
+      position: absolute;
+      left: 10px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 7px 12px 7px 30px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-input:focus         { border-color: var(--red); }
+    .search-clear {
+      position: absolute;
+      right: 9px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: none;
+      line-height: 1;
+      padding: 2px;
+    }
+    .search-clear.show { display: block; }
+
+    /* ═══ META ROW ════════════════════════════════════════════════ */
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      min-height: 20px;
+    }
+    .count-text {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+    }
+    .count-text strong { color: var(--text); }
+    .poll-text {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+    }
+
+    /* ═══ ARTICLE LIST ═══════════════════════════════════════════ */
+    #article-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .article-item {
+      display: grid;
+      grid-template-columns: 84px 1fr auto;
+      gap: 0 12px;
+      align-items: start;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid transparent;
+      border-radius: 4px;
+      text-decoration: none;
+      color: inherit;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      animation: slide-in 0.28s ease both;
+    }
+    .article-item:hover {
+      background: var(--surface2);
+      border-color: var(--border2);
+    }
+    .article-item.is-new   { border-left-color: var(--green); }
+    .article-item.just-now { animation: flash-new 2s ease forwards; }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes flash-new {
+      0%   { background: rgba(0, 198, 122, 0.09); }
+      100% { background: var(--surface); }
+    }
+
+    .art-time {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      padding-top: 2px;
+      letter-spacing: 0.02em;
+    }
+
+    .art-body { min-width: 0; }
+
+    .art-title {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.45;
+      margin-bottom: 4px;
+      word-break: keep-all;
+    }
+    .article-item:hover .art-title { color: #fff; }
+
+    .art-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .art-badge { flex-shrink: 0; padding-top: 2px; }
+
+    .badge-new {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      background: var(--green-glow);
+      color: var(--green);
+      border: 1px solid rgba(0, 198, 122, 0.28);
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+
+    /* ═══ EMPTY & LOADING ════════════════════════════════════════ */
+    .state-box {
+      text-align: center;
+      padding: 80px 24px;
+    }
+    .state-icon  { font-size: 28px; margin-bottom: 10px; opacity: 0.35; }
+    .state-title { font-size: 13px; font-weight: 500; color: var(--text-sub); margin-bottom: 5px; }
+    .state-desc  { font-size: 12px; color: var(--text-muted); }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 3px;
+    }
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .skel-item {
+      display: grid;
+      grid-template-columns: 84px 1fr;
+      gap: 0 12px;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid transparent;
+      border-radius: 4px;
+      margin-bottom: 2px;
+    }
+    .skel-time  { height: 13px; width: 60px; }
+    .skel-line1 { height: 13px; margin-bottom: 7px; border-radius: 3px; }
+    .skel-line2 { height: 11px; width: 75%; border-radius: 3px; }
+
+    /* ═══ LOAD MORE ══════════════════════════════════════════════ */
+    .load-more {
+      display: none;
+      width: 100%;
+      margin-top: 10px;
+      padding: 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .load-more.show  { display: block; }
+    .load-more:hover { border-color: var(--red); color: var(--red); }
+
+    /* ═══ NEW PILL (top) ══════════════════════════════════════════ */
+    #new-pill {
+      display: none;
+      position: fixed;
+      top: 64px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--green);
+      color: #000;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      padding: 7px 18px;
+      border-radius: 20px;
+      cursor: pointer;
+      z-index: 300;
+      white-space: nowrap;
+      animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+      box-shadow: 0 4px 20px rgba(0, 198, 122, 0.35);
+    }
+    #new-pill.show { display: block; }
+    @keyframes pop-in {
+      from { opacity: 0; transform: translateX(-50%) scale(0.75) translateY(-12px); }
+      to   { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
+    }
+
+    /* ═══ TOAST ══════════════════════════════════════════════════ */
+    #toast-wrap {
+      position: fixed;
+      bottom: 20px; right: 20px;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+      z-index: 500;
+      width: 320px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-left: 3px solid var(--green);
+      border-radius: 4px;
+      padding: 10px 12px;
+      animation: toast-in 0.3s ease both;
+      pointer-events: all;
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(18px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .toast-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .toast-tag {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green);
+    }
+    .toast-x {
+      background: none; border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+    .toast-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.45;
+    }
+
+    /* ═══ SCROLLBAR ══════════════════════════════════════════════ */
+    ::-webkit-scrollbar       { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ═══ RESPONSIVE ═════════════════════════════════════════════ */
+    @media (max-width: 580px) {
+      .logo-sep, .logo-sub, .pipe, .stat-chip { display: none; }
+      .topbar-right { gap: 10px; }
+      .article-item { grid-template-columns: 70px 1fr auto; }
+      .art-desc { -webkit-line-clamp: 1; }
+      #toast-wrap { width: calc(100vw - 32px); right: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ══════════════════════════════════════════════════ -->
+<header class="topbar">
+  <div class="logo">
+    COSMAX<span class="logo-accent">·</span>NEWS
+    <span class="logo-sep"></span>
+    <span class="logo-sub">Monitor</span>
+  </div>
+
+  <div class="live-badge">
+    <div class="live-dot" id="live-dot"></div>
+    <span class="live-text" id="live-text">CONNECTING</span>
+  </div>
+
+  <div class="topbar-right">
+    <div class="stat-chip">
+      <span class="stat-val" id="s-total">—</span>
+      <span class="stat-lbl">총 기사</span>
+    </div>
+    <div class="pipe"></div>
+    <div class="stat-chip">
+      <span class="stat-val" id="s-today">—</span>
+      <span class="stat-lbl">오늘</span>
+    </div>
+    <div class="pipe"></div>
+    <button class="notif-toggle" id="notif-btn" onclick="toggleNotification()">
+      <span class="notif-icon">🔔</span>
+      <span id="notif-label">알람</span>
+    </button>
+  </div>
+</header>
+
+<!-- ═══ NEW PILL ══════════════════════════════════════════════════ -->
+<div id="new-pill" onclick="scrollTopAndRefresh()">↑ 신규 기사 <span id="pill-count">0</span>건</div>
+
+<!-- ═══ TOAST ═════════════════════════════════════════════════════ -->
+<div id="toast-wrap"></div>
+
+<!-- ═══ MAIN ══════════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- Demo banner -->
+  <div class="demo-banner" id="demo-banner">
+    <span class="demo-banner-icon">⚡</span>
+    <div>
+      <strong>데모 모드</strong> — 실제 뉴스 연동을 위해 <code>.env</code>에 네이버 API 키를 설정하고 서버를 재시작하세요.
+      현재 30초마다 신규 기사가 자동 시뮬레이션됩니다.
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-range="all"   onclick="setRange(this)">전체</button>
+      <button class="tab"        data-range="today" onclick="setRange(this)">오늘</button>
+      <button class="tab"        data-range="week"  onclick="setRange(this)">이번주</button>
+      <button class="tab"        data-range="month" onclick="setRange(this)">이번달</button>
+    </div>
+
+    <div class="search-wrap">
+      <span class="search-ico">🔍</span>
+      <input
+        id="search-input"
+        type="text"
+        class="search-input"
+        placeholder="기사 제목·내용 검색..."
+        oninput="onSearch(this.value)"
+        autocomplete="off"
+      >
+      <span class="search-clear" id="search-clear" onclick="clearSearch()">✕</span>
+    </div>
+  </div>
+
+  <!-- Meta row -->
+  <div class="meta-row">
+    <div class="count-text">검색 결과 <strong id="count-val">—</strong>건</div>
+    <div class="poll-text" id="poll-text">—</div>
+  </div>
+
+  <!-- Article list -->
+  <div id="article-list">
+    <!-- Skeleton loading -->
+    <div id="skeleton">
+      ${[1,2,3,4,5].map(() => `
+        <div class="skel-item">
+          <div class="skel-time skeleton"></div>
+          <div>
+            <div class="skel-line1 skeleton"></div>
+            <div class="skel-line2 skeleton"></div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Load more -->
+  <button class="load-more" id="load-more" onclick="loadMore()">더 불러오기</button>
+
+</main>
+
+<!-- ═══ SCRIPT ════════════════════════════════════════════════════ -->
+<script>
+// ─── State ──────────────────────────────────────────────────────
+const S = {
+  articles:  [],
+  page:      1,
+  limit:     30,
+  hasMore:   false,
+  range:     'all',
+  query:     '',
+  connected: false,
+  notifOK:   false,
+  pendingNew: 0,
+  loading:   false,
+};
+const BASE_TITLE = document.title;
+let searchTimer = null;
+let sse = null;
+
+// ─── Util ────────────────────────────────────────────────────────
+function esc(s) {
+  return (s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function ago(dateStr) {
+  const d   = new Date(dateStr);
+  const now = new Date();
+  const ms  = now - d;
+  const m   = Math.floor(ms / 60000);
+  const h   = Math.floor(ms / 3600000);
+  if (m < 1)  return '방금 전';
+  if (m < 60) return `${m}분 전`;
+  if (h < 24) return `${h}시간 전`;
+  const sy = d.getFullYear() === now.getFullYear();
+  if (sy) {
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    return `${mm}/${dd} ${hh}:${mi}`;
+  }
+  return `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}`;
+}
+
+function isNew(pubDate) {
+  return (Date.now() - new Date(pubDate)) < 3600000;
+}
+
+// ─── Render ─────────────────────────────────────────────────────
+function renderList(articles, append = false) {
+  const el = document.getElementById('article-list');
+
+  if (!append) {
+    el.innerHTML = '';
+    if (articles.length === 0) {
+      el.innerHTML = `<div class="state-box">
+        <div class="state-icon">🔍</div>
+        <div class="state-title">기사를 찾을 수 없습니다</div>
+        <div class="state-desc">검색어를 바꾸거나 기간 필터를 조정해보세요</div>
+      </div>`;
+      return;
+    }
+  }
+
+  const frag = document.createDocumentFragment();
+  articles.forEach(a => {
+    const link = document.createElement('a');
+    link.href   = a.naverLink || a.link;
+    link.target = '_blank';
+    link.rel    = 'noopener noreferrer';
+    link.className = `article-item${isNew(a.pubDate) ? ' is-new' : ''}`;
+    link.innerHTML = `
+      <div class="art-time">${ago(a.pubDate)}</div>
+      <div class="art-body">
+        <div class="art-title">${esc(a.title)}</div>
+        ${a.description ? `<div class="art-desc">${esc(a.description)}</div>` : ''}
+      </div>
+      <div class="art-badge">${isNew(a.pubDate) ? '<span class="badge-new">NEW</span>' : ''}</div>
+    `;
+    frag.appendChild(link);
+  });
+  el.appendChild(frag);
+}
+
+// ─── API calls ───────────────────────────────────────────────────
+async function loadArticles(reset = true) {
+  if (S.loading) return;
+  S.loading = true;
+
+  if (reset) {
+    S.page = 1;
+    S.articles = [];
+    document.getElementById('article-list').innerHTML =
+      '<div id="skeleton">' +
+      [1,2,3].map(() => `<div class="skel-item">
+        <div class="skel-time skeleton"></div>
+        <div><div class="skel-line1 skeleton"></div><div class="skel-line2 skeleton"></div></div>
+      </div>`).join('') + '</div>';
+  }
+
+  try {
+    const qs = new URLSearchParams({
+      page:  S.page,
+      limit: S.limit,
+      q:     S.query,
+      range: S.range,
+    });
+    const res  = await fetch(`/api/news?${qs}`);
+    const data = await res.json();
+
+    if (reset) S.articles = data.items;
+    else        S.articles.push(...data.items);
+
+    S.hasMore = data.hasMore;
+    S.page    = data.page;
+
+    renderList(reset ? S.articles : data.items, !reset);
+
+    document.getElementById('count-val').textContent = data.total.toLocaleString();
+
+    const lm = document.getElementById('load-more');
+    lm.classList.toggle('show', S.hasMore);
+    if (S.hasMore) lm.textContent = `더 불러오기 (${data.total - S.page * S.limit}건 남음)`;
+  } catch (e) {
+    if (reset) document.getElementById('article-list').innerHTML =
+      `<div class="state-box">
+        <div class="state-icon">⚠️</div>
+        <div class="state-title">불러오기 실패</div>
+        <div class="state-desc">${e.message}</div>
+      </div>`;
+  } finally {
+    S.loading = false;
+  }
+}
+
+function loadMore() {
+  S.page++;
+  loadArticles(false);
+}
+
+async function fetchStats() {
+  try {
+    const data = await fetch('/api/stats').then(r => r.json());
+    bump('s-total', data.total);
+    bump('s-today', data.today);
+    if (data.lastPoll) {
+      document.getElementById('poll-text').textContent = `마지막 폴링: ${ago(data.lastPoll)}`;
+    }
+    if (data.demoMode) {
+      document.getElementById('demo-banner').classList.add('show');
+    }
+  } catch (_) {}
+}
+
+function bump(id, val) {
+  const el = document.getElementById(id);
+  const cur = el.textContent;
+  el.textContent = (val || 0).toLocaleString();
+  if (cur !== '—' && cur !== el.textContent) {
+    el.classList.add('bump');
+    setTimeout(() => el.classList.remove('bump'), 1200);
+  }
+}
+
+// ─── SSE ─────────────────────────────────────────────────────────
+function connectSSE() {
+  if (sse) { sse.close(); sse = null; }
+
+  sse = new EventSource('/api/stream');
+
+  sse.onopen = () => {
+    setLive('on', 'LIVE');
+  };
+
+  sse.onmessage = (e) => {
+    let data;
+    try { data = JSON.parse(e.data); } catch { return; }
+
+    if (data.type === 'connected') {
+      setLive('on', 'LIVE');
+    }
+
+    if (data.type === 'heartbeat') {
+      if (data.time)
+        document.getElementById('poll-text').textContent = `마지막 폴링: ${ago(data.time)}`;
+      bump('s-total', data.total);
+    }
+
+    if (data.type === 'new_articles' && data.articles?.length) {
+      onNewArticles(data.articles);
+    }
+  };
+
+  sse.onerror = () => {
+    setLive('err', 'RECONNECTING');
+    setTimeout(connectSSE, 5000);
+  };
+}
+
+function setLive(cls, label) {
+  const dot  = document.getElementById('live-dot');
+  const text = document.getElementById('live-text');
+  dot.className  = `live-dot ${cls}`;
+  text.className = `live-text ${cls}`;
+  text.textContent = label;
+}
+
+// ─── New article handling ────────────────────────────────────────
+function onNewArticles(articles) {
+  fetchStats();
+
+  articles.forEach(a => {
+    showToast(a);
+    notifyBrowser(a);
+  });
+
+  S.pendingNew += articles.length;
+  document.title = `(${S.pendingNew}) ${BASE_TITLE}`;
+
+  if (window.scrollY > 160) {
+    const pill = document.getElementById('new-pill');
+    document.getElementById('pill-count').textContent = S.pendingNew;
+    pill.classList.add('show');
+  } else {
+    loadArticles(true).then(() => {
+      // flash the first N new items
+      const items = document.querySelectorAll('#article-list .article-item');
+      articles.forEach((_, i) => {
+        if (items[i]) items[i].classList.add('just-now');
+      });
+    });
+    S.pendingNew = 0;
+    document.title = BASE_TITLE;
+  }
+}
+
+function scrollTopAndRefresh() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  S.pendingNew = 0;
+  document.title = BASE_TITLE;
+  document.getElementById('new-pill').classList.remove('show');
+  loadArticles(true);
+}
+
+// ─── Toast ────────────────────────────────────────────────────────
+function showToast(article) {
+  const w = document.getElementById('toast-wrap');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `
+    <div class="toast-head">
+      <span class="toast-tag">🆕 신규 기사</span>
+      <button class="toast-x" onclick="this.closest('.toast').remove()">✕</button>
+    </div>
+    <div class="toast-title">${esc(article.title)}</div>
+  `;
+  w.appendChild(t);
+  setTimeout(() => t.remove(), 7000);
+}
+
+// ─── Browser Notification ────────────────────────────────────────
+function toggleNotification() {
+  if (!('Notification' in window)) { alert('이 브라우저는 알림을 지원하지 않습니다.'); return; }
+  if (S.notifOK) {
+    S.notifOK = false;
+    updateNotifBtn(false);
+    return;
+  }
+  Notification.requestPermission().then(p => {
+    S.notifOK = p === 'granted';
+    updateNotifBtn(S.notifOK);
+  });
+}
+
+function updateNotifBtn(on) {
+  const btn = document.getElementById('notif-btn');
+  document.getElementById('notif-label').textContent = on ? '알람 ON' : '알람';
+  btn.classList.toggle('granted', on);
+}
+
+function notifyBrowser(article) {
+  if (!S.notifOK || Notification.permission !== 'granted') return;
+  const n = new Notification('코스맥스 뉴스', {
+    body: article.title,
+    tag:  article.id || String(Date.now()),
+  });
+  n.onclick = () => { window.open(article.naverLink || article.link, '_blank'); n.close(); };
+  setTimeout(() => n.close(), 9000);
+}
+
+// ─── Controls ────────────────────────────────────────────────────
+function setRange(btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  S.range = btn.dataset.range;
+  loadArticles(true);
+}
+
+function onSearch(val) {
+  clearTimeout(searchTimer);
+  const clr = document.getElementById('search-clear');
+  clr.classList.toggle('show', val.length > 0);
+  searchTimer = setTimeout(() => {
+    S.query = val.trim();
+    loadArticles(true);
+  }, 280);
+}
+
+function clearSearch() {
+  const inp = document.getElementById('search-input');
+  inp.value = '';
+  document.getElementById('search-clear').classList.remove('show');
+  S.query = '';
+  loadArticles(true);
+}
+
+// ─── Visibility / focus ──────────────────────────────────────────
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    S.pendingNew = 0;
+    document.title = BASE_TITLE;
+    document.getElementById('new-pill').classList.remove('show');
+  }
+});
+
+// Refresh timestamp labels every minute
+setInterval(() => {
+  document.querySelectorAll('.art-time').forEach((el, i) => {
+    if (S.articles[i]) el.textContent = ago(S.articles[i].pubDate);
+  });
+}, 60000);
+
+// ─── Init ────────────────────────────────────────────────────────
+(async () => {
+  // Notification permission already granted?
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    S.notifOK = true;
+    updateNotifBtn(true);
+  }
+
+  await fetchStats();
+  await loadArticles(true);
+  connectSSE();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "cosmax-news-monitor",
+  "version": "1.0.0",
+  "description": "코스맥스 네이버 뉴스 실시간 모니터링",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3"
+  },
+  "optionalDependencies": {
+    "@supabase/supabase-js": "^2.44.2"
+  }
+}
