@@ -380,7 +380,7 @@ app.post('/api/analyze', async (req, res) => {
   [대응 권고] 홍보팀이 취해야 할 액션 아이템`;
 
     // 모델 우선순위
-    const MODELS = ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-4-6'];
+    const MODELS = ['claude-haiku-4-5-20251001'];
     let lastErr = '';
     for (const model of MODELS) {
       try {
