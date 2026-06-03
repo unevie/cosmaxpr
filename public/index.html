@@ -733,7 +733,14 @@ const S = {
   loading:     false,
 };
 const BASE_TITLE   = document.title;
-const analysisCache = {}; // articleId → {score, sentiment, comment}
+// analysisCache: localStorage 영구 저장
+function loadCache() {
+  try { return JSON.parse(localStorage.getItem('analysis_cache') || '{}'); } catch { return {}; }
+}
+function saveCache(cache) {
+  try { localStorage.setItem('analysis_cache', JSON.stringify(cache)); } catch {}
+}
+const analysisCache = loadCache();
 let searchTimer     = null;
 let sse             = null;
 let audioCtx        = null;
@@ -1174,6 +1181,7 @@ async function loadAnalysis(article) {
     });
     const data = await res.json();
     analysisCache[article.id] = data;
+    saveCache(analysisCache);
 
     // Update badge in list
     const el = document.querySelector(`[data-id="${article.id}"] .art-actions`);
