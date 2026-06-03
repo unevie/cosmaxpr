@@ -954,13 +954,19 @@ function showToast(article) {
 }
 
 // ─── Browser Notification ─────────────────────────────────────────────────────
-function toggleNotification() {
+async function toggleNotification() {
   if (!('Notification' in window)) { alert('이 브라우저는 알림을 지원하지 않습니다.'); return; }
-  if (S.notifOK) { S.notifOK = false; updateNotifBtn(false); return; }
-  Notification.requestPermission().then(p => {
-    S.notifOK = p === 'granted';
-    updateNotifBtn(S.notifOK);
-  });
+  if (S.notifOK) {
+    await unsubscribePush();
+    S.notifOK = false;
+    updateNotifBtn(false);
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') { alert('알림 권한이 거부되었습니다.'); return; }
+  S.notifOK = true;
+  updateNotifBtn(true);
+  await subscribePush();
 }
 function updateNotifBtn(on) {
   document.getElementById('notif-label').textContent = on ? '알람 ON' : '알람';
@@ -1191,11 +1197,91 @@ setInterval(() => {
   });
 }, 60000);
 
+// ─── Web Push ─────────────────────────────────────────────────────────────────
+let swReg = null;
+
+function urlB64ToUint8(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function registerSW() {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    swReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    console.log('✅ Service Worker 등록됨');
+    return swReg;
+  } catch (e) {
+    console.warn('SW 등록 실패:', e);
+    return null;
+  }
+}
+
+async function subscribePush() {
+  if (!swReg) return;
+  try {
+    const { key } = await fetch('/api/vapid-key').then(r => r.json());
+    if (!key) return;
+    const sub = await swReg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8(key),
+    });
+    await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub),
+    });
+    console.log('✅ 푸시 구독 완료');
+  } catch (e) {
+    console.warn('푸시 구독 실패:', e);
+  }
+}
+
+async function unsubscribePush() {
+  if (!swReg) return;
+  try {
+    const sub = await swReg.pushManager.getSubscription();
+    if (!sub) return;
+    await fetch('/api/unsubscribe', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    });
+    await sub.unsubscribe();
+  } catch (e) {
+    console.warn('구독 해제 실패:', e);
+  }
+}
+
+async function restoreExistingSubscription() {
+  if (!swReg) return;
+  try {
+    const sub = await swReg.pushManager.getSubscription();
+    if (sub && Notification.permission === 'granted') {
+      // 이미 구독 중 → 서버에 재등록 (서버 재시작 후 복원)
+      await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub),
+      });
+      S.notifOK = true;
+      updateNotifBtn(true);
+    }
+  } catch (_) {}
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
+  // Service Worker 등록
+  await registerSW();
+
+  // 기존 알림 권한/구독 복원
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     S.notifOK = true; updateNotifBtn(true);
+    await restoreExistingSubscription();
   }
+
   await fetchStats();
   await loadArticles(true);
   connectSSE();

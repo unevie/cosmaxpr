@@ -1,5 +1,6 @@
 require('dotenv').config();
-const express = require('express');
+const express  = require('express');
+const webpush  = require('web-push');
 const cron    = require('node-cron');
 const axios   = require('axios');
 const path    = require('path');
@@ -25,6 +26,17 @@ let sseClients    = [];
 let lastPollTime  = null;
 let pollCount     = 0;
 const DEMO_MODE   = !process.env.NAVER_CLIENT_ID;
+
+// ─── Web Push VAPID 설정 ───────────────────────────────────────────────────────
+const subscriptions = new Map(); // endpoint → subscription object
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:' + (process.env.VAPID_EMAIL || 'admin@cosmax.com'),
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+  console.log('✅ Web Push VAPID 설정 완료');
+}
 
 // ─── Publisher domain mapping ─────────────────────────────────────────────────
 const PUBLISHER_DOMAINS = {
@@ -217,10 +229,34 @@ async function pollAndProcess() {
     log(`🆕 신규 기사 ${newArticles.length}건 (누적: ${articlesMap.size}건)`);
     broadcast({ type: 'new_articles', articles: newArticles });
     notifySlack(newArticles);
+    sendPushNotifications(newArticles);
   } else {
     log(`변동 없음 (누적: ${articlesMap.size}건)`);
   }
   broadcast({ type: 'heartbeat', time: lastPollTime.toISOString(), total: articlesMap.size });
+}
+
+// ─── Web Push 발송 ────────────────────────────────────────────────────────────
+async function sendPushNotifications(articles) {
+  if (!subscriptions.size || !process.env.VAPID_PUBLIC_KEY) return;
+  const first   = articles[0];
+  const payload = JSON.stringify({
+    title: `📰 코스맥스 뉴스 ${articles.length}건 신규`,
+    body:  first.title,
+    url:   first.naverLink || '/',
+    tag:   'cosmax-' + Date.now(),
+  });
+  const dead = [];
+  for (const [ep, sub] of subscriptions) {
+    try {
+      await webpush.sendNotification(sub, payload);
+    } catch (e) {
+      if (e.statusCode === 410 || e.statusCode === 404) dead.push(ep);
+      else log('Push send error: ' + e.message);
+    }
+  }
+  dead.forEach(ep => subscriptions.delete(ep));
+  if (dead.length) log(`🗑️  만료 구독 ${dead.length}개 정리`);
 }
 
 // ─── SSE ──────────────────────────────────────────────────────────────────────
@@ -412,6 +448,30 @@ app.post('/api/analyze', async (req, res) => {
     log('Analyze outer error: ' + e.message);
     res.json({ score: 3, sentiment: '중립', comment: '분석 중 오류가 발생했습니다.' });
   }
+});
+
+// ─── Push API ─────────────────────────────────────────────────────────────────
+
+// VAPID 공개키 제공
+app.get('/api/vapid-key', (req, res) => {
+  res.json({ key: process.env.VAPID_PUBLIC_KEY || null });
+});
+
+// 구독 등록
+app.post('/api/subscribe', (req, res) => {
+  const sub = req.body;
+  if (!sub?.endpoint) return res.status(400).json({ error: 'invalid' });
+  subscriptions.set(sub.endpoint, sub);
+  log(`📲 푸시 구독 등록 (총 ${subscriptions.size}개)`);
+  res.json({ ok: true });
+});
+
+// 구독 해제
+app.delete('/api/unsubscribe', (req, res) => {
+  const { endpoint } = req.body;
+  if (endpoint) subscriptions.delete(endpoint);
+  log(`🔕 푸시 구독 해제 (총 ${subscriptions.size}개)`);
+  res.json({ ok: true });
 });
 
 // ─── Start ────────────────────────────────────────────────────────────────────
