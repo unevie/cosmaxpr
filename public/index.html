@@ -61,13 +61,13 @@
     /* ═══ TOP BAR ══════════════════════════════════════════════════ */
     .topbar {
       position: fixed; top: 0; left: 0; right: 0;
-      height: 52px;
+      height: calc(52px + env(safe-area-inset-top));
       background: rgba(11,11,11,0.96);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
-      display: flex; align-items: center;
-      padding: 0 16px;
+      display: flex; align-items: flex-end;
+      padding: 0 16px 10px;
       gap: 14px;
       z-index: 200;
       padding-top: env(safe-area-inset-top);
@@ -131,7 +131,7 @@
 
     /* ═══ MAIN ════════════════════════════════════════════════════════ */
     .main {
-      padding-top: calc(52px + env(safe-area-inset-top) + 8px);
+      padding-top: calc(52px + env(safe-area-inset-top) + 16px);
       padding-left: 16px;
       padding-right: 16px;
       padding-bottom: 60px;
@@ -555,6 +555,28 @@
       letter-spacing: 0.06em;
     }
 
+
+    /* ═══ PULL TO REFRESH ════════════════════════════════════════ */
+    #ptr-indicator {
+      position: fixed;
+      top: calc(52px + env(safe-area-inset-top) + 4px);
+      left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 10px;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--text-muted);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 20px; padding: 5px 14px;
+      z-index: 199; opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+    }
+    #ptr-indicator.show { opacity: 1; }
+    #ptr-indicator.releasing { color: var(--green); border-color: rgba(0,198,122,0.3); }
+    .ptr-arrow { font-size: 12px; transition: transform 0.2s; }
+    #ptr-indicator.releasing .ptr-arrow { transform: rotate(180deg); }
+
     /* ═══ SCROLLBAR ══════════════════════════════════════════════════ */
     ::-webkit-scrollbar       { width: 4px; }
     ::-webkit-scrollbar-track { background: var(--bg); }
@@ -599,6 +621,12 @@
     </button>
   </div>
 </header>
+
+<!-- PULL TO REFRESH -->
+<div id="ptr-indicator">
+  <span class="ptr-arrow">↓</span>
+  <span id="ptr-text">당겨서 새로고침</span>
+</div>
 
 <!-- NEW PILL -->
 <div id="new-pill" onclick="scrollTopAndRefresh()">↑ 신규 기사 <span id="pill-count">0</span>건</div>
@@ -1271,6 +1299,53 @@ async function restoreExistingSubscription() {
     }
   } catch (_) {}
 }
+
+// ─── Pull to Refresh ─────────────────────────────────────────────────────────
+(function() {
+  let startY = 0;
+  let pulling = false;
+  let threshold = 80;
+  const indicator = document.getElementById('ptr-indicator');
+  const ptrText   = document.getElementById('ptr-text');
+
+  document.addEventListener('touchstart', e => {
+    if (window.scrollY === 0) {
+      startY  = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy > 10) {
+      indicator.classList.add('show');
+      if (dy > threshold) {
+        indicator.classList.add('releasing');
+        ptrText.textContent = '놓아서 새로고침';
+      } else {
+        indicator.classList.remove('releasing');
+        ptrText.textContent = '당겨서 새로고침';
+      }
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!pulling) return;
+    pulling = false;
+    const dy = e.changedTouches[0].clientY - startY;
+    indicator.classList.remove('show', 'releasing');
+    ptrText.textContent = '당겨서 새로고침';
+    if (dy > threshold && window.scrollY === 0) {
+      // 새로고침 실행
+      indicator.classList.add('show');
+      ptrText.textContent = '새로고침 중...';
+      loadArticles(true).then(() => {
+        indicator.classList.remove('show');
+      });
+    }
+  }, { passive: true });
+})();
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
