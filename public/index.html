@@ -1323,6 +1323,8 @@ async function restoreExistingSubscription() {
     }
   }, { passive: true });
 
+  let hapticFired = false;
+
   document.addEventListener('touchmove', e => {
     if (!pulling) return;
     const dy = e.touches[0].clientY - startY;
@@ -1331,9 +1333,15 @@ async function restoreExistingSubscription() {
       if (dy > threshold) {
         indicator.classList.add('releasing');
         ptrText.textContent = '놓아서 새로고침';
+        // threshold 넘는 순간 한 번만 햅틱
+        if (!hapticFired) {
+          hapticFired = true;
+          if (navigator.vibrate) navigator.vibrate([8]);
+        }
       } else {
         indicator.classList.remove('releasing');
         ptrText.textContent = '당겨서 새로고침';
+        hapticFired = false;
       }
     }
   }, { passive: true });
@@ -1341,15 +1349,19 @@ async function restoreExistingSubscription() {
   document.addEventListener('touchend', e => {
     if (!pulling) return;
     pulling = false;
+    hapticFired = false;
     const dy = e.changedTouches[0].clientY - startY;
     indicator.classList.remove('show', 'releasing');
     ptrText.textContent = '당겨서 새로고침';
     if (dy > threshold && window.scrollY === 0) {
-      // 새로고침 실행
+      // 새로고침 실행 햅틱
+      if (navigator.vibrate) navigator.vibrate([6, 40, 6]);
       indicator.classList.add('show');
       ptrText.textContent = '새로고침 중...';
       loadArticles(true).then(() => {
         indicator.classList.remove('show');
+        // 완료 햅틱
+        if (navigator.vibrate) navigator.vibrate([4]);
       });
     }
   }, { passive: true });
