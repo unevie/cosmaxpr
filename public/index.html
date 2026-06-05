@@ -556,6 +556,31 @@
     }
 
 
+    /* ═══ REFRESH BUTTON ════════════════════════════════════════ */
+    .refresh-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; cursor: pointer; flex-shrink: 0;
+      color: var(--text-muted); font-size: 14px;
+      transition: all 0.2s;
+    }
+    .refresh-btn:hover  { border-color: var(--red); color: var(--red); }
+    .refresh-btn.spinning { pointer-events: none; }
+    .refresh-btn.spinning span { display: inline-block; animation: spin 0.6s linear infinite; }
+
+    /* ═══ REFRESH BUTTON ════════════════════════════════════════ */
+    .refresh-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 4px; cursor: pointer; flex-shrink: 0;
+      color: var(--text-muted); font-size: 15px;
+      transition: all 0.2s;
+    }
+    .refresh-btn:hover  { border-color: var(--red); color: var(--red); }
+    .refresh-btn.spinning span { display: inline-block; animation: spin 0.6s linear infinite; }
+
     /* ═══ PULL TO REFRESH ════════════════════════════════════════ */
     #ptr-indicator {
       position: fixed;
@@ -676,6 +701,9 @@
         oninput="onSearch(this.value)" autocomplete="off">
       <span class="search-clear" id="search-clear" onclick="clearSearch()">✕</span>
     </div>
+    <button class="refresh-btn" id="refresh-btn" onclick="onRefreshClick()" title="새로고침">
+      <span>↻</span>
+    </button>
   </div>
 
   <!-- Date range filter -->
@@ -1058,10 +1086,30 @@ function clearDateFilter() {
   loadArticles(true);
 }
 
+function onRefreshClick() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  vibrate([6, 40, 6]);
+  loadArticles(true).then(() => {
+    btn.classList.remove('spinning');
+    vibrate([4]);
+  });
+}
+
 function onSearch(val) {
   clearTimeout(searchTimer);
   document.getElementById('search-clear').classList.toggle('show', val.length > 0);
   searchTimer = setTimeout(() => { S.query = val.trim(); loadArticles(true); }, 280);
+}
+
+function onRefreshClick() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  if (navigator.vibrate) navigator.vibrate([6, 40, 6]);
+  loadArticles(true).then(() => {
+    btn.classList.remove('spinning');
+    if (navigator.vibrate) navigator.vibrate([4]);
+  });
 }
 
 function clearSearch() {
@@ -1240,7 +1288,16 @@ function urlB64ToUint8(b64) {
 async function registerSW() {
   if (!('serviceWorker' in navigator)) return null;
   try {
-    swReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    swReg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
+    // 새 SW 즉시 활성화
+    swReg.addEventListener('updatefound', () => {
+      const newSW = swReg.installing;
+      if (newSW) newSW.addEventListener('statechange', () => {
+        if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+          newSW.postMessage({ type: 'SKIP_WAITING' });
+        }
+      });
+    });
     console.log('✅ Service Worker 등록됨');
     return swReg;
   } catch (e) {
