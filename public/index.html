@@ -697,7 +697,7 @@
     <div class="search-wrap">
       <span class="search-ico">🔍</span>
       <input id="search-input" type="text" class="search-input"
-        placeholder="기사 검색..."
+        placeholder="제목·언론사·기자명 검색..."
         oninput="onSearch(this.value)" autocomplete="off">
       <span class="search-clear" id="search-clear" onclick="clearSearch()">✕</span>
     </div>
@@ -1250,6 +1250,16 @@ async function loadAnalysis(article) {
 }
 
 // ─── Visibility / focus ────────────────────────────────────────────────────────
+// SW로부터 알림 클릭 메시지 수신 → 목록 새로고침
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data?.type === 'NOTIFICATION_CLICK') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      loadArticles(true);
+    }
+  });
+}
+
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     S.pendingNew = 0;
@@ -1359,6 +1369,11 @@ async function restoreExistingSubscription() {
   } catch (_) {}
 }
 
+// ─── Vibrate (global) ───────────────────────────────────────────────────────
+function vibrate(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(_) {}
+}
+
 // ─── Pull to Refresh ─────────────────────────────────────────────────────────
 (function() {
   let startY = 0;
@@ -1437,6 +1452,12 @@ async function restoreExistingSubscription() {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
+  // 빈 화면 방지: 앱이 blank 상태로 열렸으면 자동 복구
+  if (document.body && document.body.innerHTML.trim() === '') {
+    window.location.reload();
+    return;
+  }
+
   // Service Worker 등록
   await registerSW();
 
