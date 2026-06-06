@@ -581,6 +581,108 @@
     .refresh-btn:hover  { border-color: var(--red); color: var(--red); }
     .refresh-btn.spinning span { display: inline-block; animation: spin 0.6s linear infinite; }
 
+
+    /* ═══ 보도자료 패널 ═══════════════════════════════════════════════════════ */
+    .pr-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 6px 11px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-muted);
+      font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+      cursor: pointer; white-space: nowrap; transition: all 0.2s; flex-shrink: 0;
+    }
+    .pr-btn:hover, .pr-btn.active { border-color: #3B82F6; color: #3B82F6; }
+    .pr-btn .pr-icon { font-size: 12px; }
+
+    #pr-panel {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      z-index: 400;
+      display: flex; flex-direction: column;
+      max-height: 85vh;
+      transform: translateY(100%);
+      transition: transform 0.35s cubic-bezier(.32,.72,0,1);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #pr-panel.open { transform: translateY(0); }
+    .pr-panel-handle {
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--border2); margin: 10px auto 0;
+    }
+    .pr-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px 8px;
+      border-bottom: 1px solid var(--border);
+      gap: 8px;
+    }
+    .pr-panel-header > div:first-child { flex: 1; }
+    .pr-panel-header-actions { display: flex; gap: 6px; align-items: center; }
+    .pr-panel-title {
+      font-family: var(--mono); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.1em; color: var(--text);
+    }
+    .pr-panel-count {
+      font-family: var(--mono); font-size: 10px; color: var(--text-muted);
+    }
+    .pr-refresh-btn {
+      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text-muted); cursor: pointer; font-size: 15px;
+      transition: all 0.2s;
+    }
+    .pr-refresh-btn:hover { color: #3B82F6; border-color: #3B82F6; }
+    .pr-refresh-btn.spinning { animation: spin 0.8s linear infinite; }
+
+    .pr-panel-close {
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; background: var(--surface2); color: var(--text-muted);
+      cursor: pointer; font-size: 14px;
+    }
+    .pr-list { overflow-y: auto; flex: 1; padding: 8px 0; }
+    .pr-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 16px; border-bottom: 1px solid var(--border);
+      cursor: default;
+    }
+    .pr-item:last-child { border-bottom: none; }
+    .pr-cat-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 5px;
+    }
+    .pr-item-body { flex: 1; min-width: 0; }
+    .pr-item-title {
+      font-size: 13px; color: var(--text); line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .pr-item-meta {
+      display: flex; align-items: center; gap: 6px; margin-top: 4px;
+    }
+    .pr-cat-badge {
+      font-size: 9px; padding: 2px 6px; border-radius: 3px;
+      font-family: var(--mono); font-weight: 600; letter-spacing: 0.04em;
+    }
+    .pr-item-date {
+      font-family: var(--mono); font-size: 9px; color: var(--text-muted);
+    }
+    .pr-item-entity {
+      font-size: 9px; color: var(--text-muted);
+    }
+    #pr-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 399; opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    #pr-overlay.show { opacity: 1; pointer-events: all; }
+
+    /* PR 라벨 (기사 카드 내 언론사 아래) */
+    .pr-label {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 9px; padding: 1px 5px; border-radius: 3px;
+      font-family: var(--mono); font-weight: 600;
+      margin-top: 3px; letter-spacing: 0.04em;
+    }
+
     /* ═══ PULL TO REFRESH ════════════════════════════════════════ */
     #ptr-indicator {
       position: fixed;
@@ -646,6 +748,26 @@
     </button>
   </div>
 </header>
+
+<!-- PR PANEL OVERLAY -->
+<div id="pr-overlay" onclick="closePRPanel()"></div>
+
+<!-- PR PANEL -->
+<div id="pr-panel">
+  <div class="pr-panel-handle"></div>
+  <div class="pr-panel-header">
+    <div>
+      <div class="pr-panel-title">📋 보도자료 라이브러리</div>
+      <div class="pr-panel-count" id="pr-count">— 건</div>
+      <div style="font-size:9px;color:var(--text-muted);margin-top:2px;font-family:var(--mono)">평일 09·12·15·18시 자동 갱신</div>
+    </div>
+    <button class="pr-refresh-btn" id="pr-refresh-btn" onclick="refreshPR()" title="신규 보도자료 검색">↻</button>
+    <div class="pr-panel-close" onclick="closePRPanel()">✕</div>
+  </div>
+  <div class="pr-list" id="pr-list">
+    <div class="state-box"><div class="state-icon">⏳</div><div class="state-desc">불러오는 중...</div></div>
+  </div>
+</div>
 
 <!-- PULL TO REFRESH -->
 <div id="ptr-indicator">
@@ -1449,6 +1571,87 @@ function vibrate(pattern) {
     }
   }, { passive: true });
 })();
+
+
+// ─── 보도자료 패널 ─────────────────────────────────────────────────────────────
+let prData = [];
+
+const PR_CAT_COLORS = {
+  '혁신 기술':     '#3B82F6',
+  '경영/IR/ESG':  '#10B981',
+  '글로벌 확장':   '#8B5CF6',
+  '공동 연구':     '#06B6D4',
+  '생산 인프라':   '#F97316',
+  '대외 수상/행사':'#EAB308',
+  '파트너십/MOU': '#EC4899',
+  '인증/규제/표준':'#94A3B8',
+  'M&A':          '#EF4444',
+};
+
+async function loadPressReleases() {
+  try {
+    prData = await fetch('/api/press-releases').then(r => r.json());
+    renderPRList();
+  } catch(e) {
+    document.getElementById('pr-list').innerHTML =
+      '<div class="state-box"><div class="state-desc">불러오기 실패</div></div>';
+  }
+}
+
+function renderPRList() {
+  const el = document.getElementById('pr-list');
+  document.getElementById('pr-count').textContent = prData.length + '건';
+  if (!prData.length) {
+    el.innerHTML = '<div class="state-box"><div class="state-desc">보도자료 없음</div></div>';
+    return;
+  }
+  el.innerHTML = prData.map(p => {
+    const color = PR_CAT_COLORS[p.cat] || '#94A3B8';
+    return `<div class="pr-item">
+      <div class="pr-cat-dot" style="background:${color}"></div>
+      <div class="pr-item-body">
+        <div class="pr-item-title">${p.title}</div>
+        <div class="pr-item-meta">
+          <span class="pr-cat-badge" style="background:${color}22;color:${color}">${p.cat}</span>
+          <span class="pr-item-entity">${p.entity}</span>
+          <span class="pr-item-date">${p.date}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function refreshPR() {
+  const btn = document.getElementById('pr-refresh-btn');
+  btn.classList.add('spinning');
+  try {
+    const res = await fetch('/api/pr-refresh', { method: 'POST' });
+    const data = await res.json();
+    await loadPressReleases();
+  } catch(e) {
+    console.error('PR refresh error:', e);
+  }
+  btn.classList.remove('spinning');
+}
+
+function togglePRPanel() {
+  const panel = document.getElementById('pr-panel');
+  const overlay = document.getElementById('pr-overlay');
+  if (panel.classList.contains('open')) {
+    closePRPanel();
+  } else {
+    panel.classList.add('open');
+    overlay.classList.add('show');
+    document.getElementById('pr-btn').classList.add('active');
+    if (!prData.length) loadPressReleases();
+  }
+}
+
+function closePRPanel() {
+  document.getElementById('pr-panel').classList.remove('open');
+  document.getElementById('pr-overlay').classList.remove('show');
+  document.getElementById('pr-btn').classList.remove('active');
+}
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
