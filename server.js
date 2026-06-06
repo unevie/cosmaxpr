@@ -1037,6 +1037,7 @@ app.post('/api/analyze', async (req, res) => {
 
 // ─── Claude web_search로 신규 보도자료 수집 ──────────────────────────────────
 async function fetchPRsWithClaude() {
+  const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) { log('PR 검색: ANTHROPIC_API_KEY 없음'); return; }
   log('🤖 Claude로 보도자료 검색 중...');
 
