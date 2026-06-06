@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express  = require('express');
 const webpush  = require('web-push');
-const cheerio  = require('cheerio');
 const cron    = require('node-cron');
 const axios   = require('axios');
 const path    = require('path');
