@@ -1050,14 +1050,9 @@ async function fetchPRsWithClaude() {
         tools: [{ type: 'web_search_20250305', name: 'web_search' }],
         messages: [{
           role: 'user',
-          content: `cosmax.com/media 페이지에서 최근 보도자료를 검색해줘.
-결과는 반드시 아래 JSON 배열 형식으로만 응답해. 다른 텍스트는 절대 포함하지 마.
-[{"date":"YYYY-MM-DD","entity":"Cosmax Group","title":"한국어 제목"}]
-규칙:
-- entity는 Cosmax / Cosmax Group / Cosmax NBT / Cosmax BIO / Cosmax BTI 중 하나
-- date는 YYYY-MM-DD 형식
-- title은 공식 보도자료 제목 그대로 (한국어)
-- 최신순 10개만`
+          content: `코스맥스 보도자료를 웹 검색으로 찾아줘. 검색어: "코스맥스 보도자료 2026 site:cosmax.com" 또는 "코스맥스 신제품 개발 2026". 찾은 결과를 아래 JSON으로만 응답 (다른 텍스트 없이):
+[{"date":"YYYY-MM-DD","entity":"Cosmax","title":"보도자료 제목"}]
+entity: Cosmax/Cosmax Group/Cosmax NBT/Cosmax BIO 중 하나. 최신순 10개.`
         }]
       },
       {
