@@ -743,6 +743,7 @@
       <span class="stat-lbl">오늘</span>
     </div>
     <div class="pipe"></div>
+    <button class="pr-btn" id="pr-btn" onclick="togglePRPanel()"><span class="pr-icon">📋</span>보도자료</button>
     <button class="notif-toggle" id="notif-btn" onclick="toggleNotification()">
       🔔 <span id="notif-label">알람</span>
     </button>
@@ -815,6 +816,7 @@
       <button class="tab"        data-range="week"  onclick="setRange(this)">이번주</button>
       <button class="tab"        data-range="month" onclick="setRange(this)">이번달</button>
       <button class="tab"        data-range="custom" id="tab-date" onclick="toggleDateFilter(this)">📅 날짜</button>
+      <button class="tab" id="tab-pr" onclick="setFilterPR(this)">📋 보도자료</button>
     </div>
     <div class="search-wrap">
       <span class="search-ico">🔍</span>
@@ -1163,6 +1165,8 @@ function notifyBrowser(article) {
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
 function setRange(btn) {
+  S.prFilter = false;
+  document.getElementById('tab-pr').classList.remove('active');
   if (btn.dataset.range === 'custom') return; // handled by toggleDateFilter
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active', 'date-active'));
   btn.classList.add('active');
@@ -1632,6 +1636,16 @@ async function refreshPR() {
     console.error('PR refresh error:', e);
   }
   btn.classList.remove('spinning');
+}
+
+function setFilterPR(btn) {
+  // 기존 탭 비활성화
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  S.prFilter = true;
+  S.range = 'all';
+  S.page = 1;
+  loadArticles(true);
 }
 
 function togglePRPanel() {
