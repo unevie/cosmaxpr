@@ -681,10 +681,11 @@
 
     /* PR 라벨 (기사 카드 내 언론사 아래) */
     .pr-label {
-      display: inline-flex; align-items: center; gap: 3px;
-      font-size: 9px; padding: 1px 5px; border-radius: 3px;
+      display: inline-flex; align-items: center;
+      font-size: 9px; padding: 0;
       font-family: var(--mono); font-weight: 600;
       margin-top: 3px; letter-spacing: 0.04em;
+      background: none !important; border: none !important;
     }
 
 
@@ -1073,7 +1074,7 @@ function checkPRLabel(a) {
     return words.filter(w => aText.includes(w)).length >= 2;
   });
   if (!isMatch) return '';
-  return '<div class="pr-label" style="background:rgba(150,150,150,0.12);color:#9CA3AF;border:1px solid rgba(150,150,150,0.25)">보도자료</div>';
+  return '<div class="pr-label" style="color:#fff">보도자료</div>';
 }
 
 async function loadArticles(reset = true) {
