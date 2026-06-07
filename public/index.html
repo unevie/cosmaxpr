@@ -683,6 +683,33 @@
       margin-top: 3px; letter-spacing: 0.04em;
     }
 
+
+    /* PR 연도 탭 */
+    .pr-year-tabs {
+      display: flex; gap: 6px; padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .pr-year-tab {
+      padding: 4px 12px; border-radius: 20px;
+      border: 1px solid var(--border); background: var(--surface2);
+      color: var(--text-muted); font-family: var(--mono); font-size: 10px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .pr-year-tab.active, #pr-year-active {
+      background: #3B82F6; border-color: #3B82F6; color: #fff;
+    }
+    /* 보도자료 토글 버튼 */
+    .tab-toggle {
+      display: flex; align-items: center; gap: 4px;
+      padding: 5px 10px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--text-muted); font-size: 11px; font-family: var(--mono);
+      cursor: pointer; white-space: nowrap; transition: all 0.2s;
+    }
+    .tab-toggle.on {
+      background: rgba(59,130,246,0.15); border-color: #3B82F6; color: #3B82F6;
+    }
+    .tab-toggle.on::before { content: '● '; font-size: 8px; color: #3B82F6; }
     /* ═══ PULL TO REFRESH ════════════════════════════════════════ */
     #ptr-indicator {
       position: fixed;
@@ -757,13 +784,21 @@
 <div id="pr-panel">
   <div class="pr-panel-handle"></div>
   <div class="pr-panel-header">
-    <div>
+    <div style="flex:1">
       <div class="pr-panel-title">📋 보도자료 라이브러리</div>
-      <div class="pr-panel-count" id="pr-count">— 건</div>
-      <div style="font-size:9px;color:var(--text-muted);margin-top:2px;font-family:var(--mono)">평일 09·12·15·18시 자동 갱신</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <div class="pr-panel-count" id="pr-count">— 건</div>
+        <div style="font-size:9px;color:var(--text-muted);font-family:var(--mono)">평일 자동 갱신</div>
+      </div>
     </div>
     <button class="pr-refresh-btn" id="pr-refresh-btn" onclick="refreshPR()" title="신규 보도자료 검색">↻</button>
     <div class="pr-panel-close" onclick="closePRPanel()">✕</div>
+  </div>
+  <div class="pr-year-tabs">
+    <button class="pr-year-tab" data-year="2026" onclick="setPRYear(this)" id="pr-year-active">2026</button>
+    <button class="pr-year-tab" data-year="2025" onclick="setPRYear(this)">2025</button>
+    <button class="pr-year-tab" data-year="2024" onclick="setPRYear(this)">2024</button>
+    <button class="pr-year-tab" data-year="all"  onclick="setPRYear(this)">전체</button>
   </div>
   <div class="pr-list" id="pr-list">
     <div class="state-box"><div class="state-icon">⏳</div><div class="state-desc">불러오는 중...</div></div>
@@ -816,7 +851,7 @@
       <button class="tab"        data-range="week"  onclick="setRange(this)">이번주</button>
       <button class="tab"        data-range="month" onclick="setRange(this)">이번달</button>
       <button class="tab"        data-range="custom" id="tab-date" onclick="toggleDateFilter(this)">📅 날짜</button>
-      <button class="tab" id="tab-pr" onclick="setFilterPR(this)">📋 보도자료</button>
+      <button class="tab-toggle" id="tab-pr" onclick="setFilterPR(this)">📋 보도자료</button>
     </div>
     <div class="search-wrap">
       <span class="search-ico">🔍</span>
@@ -955,6 +990,7 @@ function renderList(articles, append = false) {
       <div class="art-meta">
         <div class="art-time">${ago(a.pubDate)}</div>
         <div class="art-publisher">${esc(a.publisher || '')}</div>
+        ${checkPRLabel(a)}
       </div>
       <div class="art-body">
         <div class="art-title">${esc(a.title)}</div>
@@ -972,6 +1008,26 @@ function renderList(articles, append = false) {
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
+
+function checkPRLabel(a) {
+  if (!prData.length) return '';
+  const aText = (a.title||'') + ' ' + (a.description||'');
+  const aDate = new Date(a.pubDate);
+  let matchedCat = a.prCat || null;
+  if (!matchedCat) {
+    for (const pr of prData) {
+      if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 7) continue;
+      const words = (pr.title.match(/[가-힣]{2,}/g)||[]);
+      if (words.filter(w => aText.includes(w)).length >= 2) {
+        matchedCat = pr.cat; break;
+      }
+    }
+  }
+  if (!matchedCat) return '';
+  const color = PR_CAT_COLORS[matchedCat] || '#94A3B8';
+  return '<div class="pr-label" style="background:' + color + '22;color:' + color + ';border:1px solid ' + color + '44">📋 ' + matchedCat + '</div>';
+}
+
 async function loadArticles(reset = true) {
   if (S.loading) return;
   S.loading = true;
@@ -998,8 +1054,23 @@ async function loadArticles(reset = true) {
     else        S.articles.push(...data.items);
     S.hasMore = data.hasMore;
     S.page    = data.page;
-    renderList(reset ? S.articles : data.items, !reset);
-    document.getElementById('count-val').textContent = data.total.toLocaleString();
+    // prFilter 클라이언트 필터
+    let displayItems = reset ? S.articles : data.items;
+    if (S.prFilter && prData.length) {
+      displayItems = displayItems.filter(a => {
+        if (a.isPR) return true;
+        const aText = (a.title||'') + ' ' + (a.description||'');
+        const aDate = new Date(a.pubDate);
+        return prData.some(pr => {
+          if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 7) return false;
+          const words = (pr.title.match(/[가-힣]{2,}/g)||[]);
+          return words.filter(w => aText.includes(w)).length >= 2;
+        });
+      });
+    }
+    renderList(displayItems, !reset);
+    const dispTotal = S.prFilter ? displayItems.length : data.total;
+    document.getElementById('count-val').textContent = dispTotal.toLocaleString();
     const lm = document.getElementById('load-more');
     lm.classList.toggle('show', S.hasMore);
     if (S.hasMore) lm.textContent = `더 불러오기 (${data.total - S.page * S.limit}건 남음)`;
@@ -1166,7 +1237,8 @@ function notifyBrowser(article) {
 // ─── Controls ─────────────────────────────────────────────────────────────────
 function setRange(btn) {
   S.prFilter = false;
-  document.getElementById('tab-pr').classList.remove('active');
+  const tabPR = document.getElementById('tab-pr');
+  if (tabPR) { tabPR.classList.remove('active'); tabPR.classList.remove('on'); }
   if (btn.dataset.range === 'custom') return; // handled by toggleDateFilter
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active', 'date-active'));
   btn.classList.add('active');
@@ -1604,12 +1676,15 @@ async function loadPressReleases() {
 
 function renderPRList() {
   const el = document.getElementById('pr-list');
-  document.getElementById('pr-count').textContent = prData.length + '건';
-  if (!prData.length) {
+  const filtered = prYearFilter === 'all'
+    ? prData
+    : prData.filter(p => p.date && p.date.startsWith(prYearFilter));
+  document.getElementById('pr-count').textContent = filtered.length + '건';
+  if (!filtered.length) {
     el.innerHTML = '<div class="state-box"><div class="state-desc">보도자료 없음</div></div>';
     return;
   }
-  el.innerHTML = prData.map(p => {
+  el.innerHTML = filtered.map(p => {
     const color = PR_CAT_COLORS[p.cat] || '#94A3B8';
     return `<div class="pr-item">
       <div class="pr-cat-dot" style="background:${color}"></div>
@@ -1639,13 +1714,23 @@ async function refreshPR() {
 }
 
 function setFilterPR(btn) {
-  // 기존 탭 비활성화
-  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  S.prFilter = true;
-  S.range = 'all';
+  // 토글 방식
+  S.prFilter = !S.prFilter;
+  btn.classList.toggle('on', S.prFilter);
+  // 기존 탭 active 제거 (토글 켜면 다른 탭 비활성)
+  if (S.prFilter) {
+    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  }
   S.page = 1;
   loadArticles(true);
+}
+
+let prYearFilter = '2026';
+function setPRYear(btn) {
+  document.querySelectorAll('.pr-year-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  prYearFilter = btn.dataset.year;
+  renderPRList();
 }
 
 function togglePRPanel() {
