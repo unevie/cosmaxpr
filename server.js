@@ -28,7 +28,7 @@ let pollCount     = 0;
 const DEMO_MODE   = !process.env.NAVER_CLIENT_ID;
 
 // ─── Web Push VAPID 설정 ───────────────────────────────────────────────────────
-const subscriptions = new Map(); // endpoint → subscription object
+const subscriptions = new Map();
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
     'mailto:' + (process.env.VAPID_EMAIL || 'admin@cosmax.com'),
@@ -57,6 +57,7 @@ const PUBLISHER_DOMAINS = {
   'imaeil.com':             '매일신문',
   'busan.com':              '부산일보',
   'kookje.co.kr':           '국제신문',
+  'kyeonggi.com':           '경기일보',
   // ── 경제·통신 ────────────────────────────────────────────────────────────
   'yonhapnews.co.kr':       '연합뉴스',
   'yna.co.kr':              '연합뉴스',
@@ -125,7 +126,7 @@ const PUBLISHER_DOMAINS = {
   'fashionbiz.co.kr':       '패션비즈',
   // ── 스타트업·기업 ────────────────────────────────────────────────────────
   'startuptoday.co.kr':     '스타트업투데이',
-  'thebk.co.kr':            '더비케이',
+  'thebk.co.kr':            '뷰티경제',
   'theguru.co.kr':          '더구루',
   'impacton.co':            '임팩트온',
   'ceoscoredaily.com':      'CEO스코어데일리',
@@ -184,8 +185,6 @@ const CATEGORY_COLORS = {
 };
 
 // ─── 카테고리 키워드 분류기 ────────────────────────────────────────────────────
-
-// 구글시트 기반 161개 보도자료 카테고리 이력 (타이틀 → 카테고리)
 const PR_CATEGORY_HISTORY = {
   '대세는 인디브랜드 & 맞춤형': '경영/IR/ESG',
   '아프리카도 반했다': '글로벌 확장',
@@ -351,11 +350,9 @@ const PR_CATEGORY_HISTORY = {
 };
 
 function classifyPressRelease(title) {
-  // 1. 이력 데이터 매칭 (키워드 포함 여부)
   for (const [keyword, cat] of Object.entries(PR_CATEGORY_HISTORY)) {
     if (title.includes(keyword)) return cat;
   }
-  // 2. 키워드 기반 분류
   const scores = {};
   for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     scores[cat] = keywords.filter(k => title.includes(k)).length;
@@ -388,47 +385,32 @@ async function fetchPressReleases() {
       },
       timeout: 15000,
     });
-
     const html = res.data;
     const items = [];
     const entities = ['Cosmax BTI', 'Cosmax Group', 'Cosmax NBT', 'Cosmax BIO', 'Cosmax'];
     const monthPat = Object.keys(MONTHS).join('|');
-    const dateRe = new RegExp(`(${monthPat})\\s+\\d+(?:st|nd|rd|th),?\\s*\\d{4}`, 'g');
-
-    // href="/media/..." 패턴으로 링크 추출
     const hrefRe = /href="(\/media\/[^"]+)"/g;
     const seen = new Set();
     let m;
-
     while ((m = hrefRe.exec(html)) !== null) {
       const slug = m[1];
       if (seen.has(slug) || slug === '/media/') continue;
       seen.add(slug);
-
-      // 해당 링크 주변 HTML 조각 추출 (500자)
       const start = Math.max(0, m.index - 300);
       const chunk = html.substring(start, m.index + 400);
-
-      // 제목 추출 (한글 포함 텍스트)
       const koreanRe = /[가-힣][가-힣\s\w'",…·\-()&]+/g;
       const korMatches = chunk.match(koreanRe) || [];
       const title = korMatches
         .filter(t => t.length > 10 && !t.includes('Find out'))
         .sort((a, b) => b.length - a.length)[0] || '';
-
       if (!title) continue;
-
-      // 날짜 추출
       const dateMatch = chunk.match(new RegExp(`(${monthPat})\\s+\\d+(?:st|nd|rd|th),?\\s*\\d{4}`));
       const dateStr = dateMatch ? dateMatch[0] : '';
       const pubDate = parsePRDate(dateStr);
-
-      // 엔티티 추출
       let entity = 'Cosmax';
       for (const e of entities) {
         if (chunk.includes(e)) { entity = e; break; }
       }
-
       const category = classifyPressRelease(title);
       items.push({
         id:       slug.replace('/media/', '').replace(/\//g, ''),
@@ -441,10 +423,7 @@ async function fetchPressReleases() {
         catClass: CATEGORY_COLORS[category] || 'cat-mgmt',
       });
     }
-
-    // 날짜 내림차순 정렬
     items.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
     if (items.length > 0) {
       prCache = { items, lastFetch: new Date() };
       log(`📋 보도자료 ${items.length}건 로드`);
@@ -456,25 +435,20 @@ async function fetchPressReleases() {
   }
 }
 
-// 뉴스 기사 ↔ 보도자료 매칭 (키워드 기반)
 function matchArticleToPR(article) {
   if (!prCache.items.length) return false;
   const aTitle = article.title.replace(/[\[\]()]/g, '');
   const aPubDate = new Date(article.pubDate);
-
   for (const pr of prCache.items) {
     const prDate = new Date(pr.pubDate);
     const dayDiff = Math.abs((aPubDate - prDate) / 86400000);
     if (dayDiff > 7) continue;
-
-    // 키워드 겹침 검사
     const prWords = pr.title.split(/\s+/).filter(w => w.length > 3);
     const overlap = prWords.filter(w => aTitle.includes(w)).length;
     if (overlap >= 2) return true;
   }
   return false;
 }
-
 
 function extractPublisher(url) {
   if (!url) return '미상';
@@ -607,7 +581,7 @@ async function pollAndProcess() {
       publisher:   extractPublisher(item.originallink || item.link),
       pubDate:     new Date(item.pubDate),
       isNew:       true,
-      isPR:        false, // will be set after PR cache loads
+      isPR:        false,
       createdAt:   new Date(),
     };
     articlesMap.set(link, article);
@@ -624,7 +598,6 @@ async function pollAndProcess() {
   }
   broadcast({ type: 'heartbeat', time: lastPollTime.toISOString(), total: articlesMap.size });
 }
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // 보도자료 시스템
@@ -654,7 +627,7 @@ const CATEGORY_KEYWORDS = {
   'M&A':          ['인수','합병','M&A','지분','취득','바이아웃'],
 };
 
-// 구글시트 161개 이력 (날짜·법인·제목·카테고리)
+// 구글시트 기반 161개 보도자료 이력
 const PR_HISTORY = [
   {date:'2024-01-04',entity:'Cosmax Group',title:'대세는 인디브랜드 & 맞춤형…코스맥스그룹 글로벌 스탠다드로 거듭날 것',cat:'경영/IR/ESG'},
   {date:'2024-01-11',entity:'Cosmax Group',title:'아프리카도 반했다 코스맥스 신흥국 TF K뷰티 전도사 역할 톡톡',cat:'글로벌 확장'},
@@ -819,10 +792,8 @@ const PR_HISTORY = [
   {date:'2026-06-05',entity:'Cosmax Group',title:'코스맥스 파트너사 원료 제안 프로세스 디지털화 공급망 다변화 속도',cat:'파트너십/MOU'},
 ];
 
-// 보도자료 메모리 (서버 시작 시 이력 로드 + 주기적 업데이트)
 let pressReleases = [...PR_HISTORY];
 
-// 카테고리 자동 분류
 function classifyPR(title) {
   const t = title.replace(/[^가-힣a-zA-Z0-9 ]/g, ' ');
   const scores = {};
@@ -833,18 +804,16 @@ function classifyPR(title) {
   return best[1] > 0 ? best[0] : '경영/IR/ESG';
 }
 
-// 기사 ↔ 보도자료 매칭
 function matchPR(article) {
   const aDate = new Date(article.pubDate);
   const aTitle = (article.title + ' ' + (article.description||'')).replace(/<[^>]+>/g,'');
   for (const pr of pressReleases) {
     const prDate = new Date(pr.date);
     const diffDays = Math.abs((aDate - prDate) / 86400000);
-    if (diffDays > 7) continue;
-    // 공통 핵심어 추출 (2글자 이상 한국어/영어 단어)
-    const prWords = pr.title.match(/[가-힣]{2,}|[A-Za-z]{3,}/g) || [];
+    if (diffDays > 14) continue;
+    const prWords = pr.title.match(/[가-힣]{3,}|[A-Za-z]{3,}/g) || [];
     const matches = prWords.filter(w => aTitle.includes(w));
-    if (matches.length >= 3) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
+    if (matches.length >= 2) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
   }
   return null;
 }
@@ -882,14 +851,14 @@ function broadcast(data) {
 // ─── Demo data ────────────────────────────────────────────────────────────────
 function loadDemoData() {
   const items = [
-    { title: '코스맥스, 2026년 1분기 역대 최대 실적 달성…매출 5,200억원', desc: '코스맥스가 글로벌 ODM 사업 확대에 힘입어 1분기 매출 5,200억원을 기록했다. 전년 동기 대비 23% 증가한 수치로 창사 이래 분기 최대 실적이다.', pub: '한국경제', min: 5 },
-    { title: '코스맥스BTI, 2대주주 지분 거래 공시…경영권 변동 없어', desc: '코스맥스 그룹의 지주회사인 코스맥스BTI가 2대주주의 지분 일부 처분 사실을 공시했다. 회사 측은 경영권에는 영향이 없다고 밝혔다.', pub: '매일경제', min: 42 },
-    { title: 'K-뷰티 ODM 1위 코스맥스, 미국 오하이오 신규 생산라인 가동', desc: '코스맥스가 미국 오하이오주 생산법인에 신규 라인을 증설하며 북미 시장 공략을 강화한다고 밝혔다. 현지 고용 300명 규모다.', pub: '조선일보', min: 118 },
-    { title: '코스맥스, 헬로바이옴 공동개발 마이크로바이옴 원료 5종 공개', desc: '코스맥스는 헬로바이옴과 공동 개발한 마이크로바이옴 화장품 원료 5종을 공개했다. 해당 원료는 2026년 하반기 양산 예정이다.', pub: '연합뉴스', min: 235 },
-    { title: '코스맥스 M2C 전략 성과…국내 뷰티 브랜드 20개사 신규 계약', desc: '코스맥스의 M2C(Manufacturer to Consumer) 디지털 전략이 중소 뷰티 브랜드들 사이에서 반향을 일으키며 신규 계약이 빠르게 증가하고 있다.', pub: '코스인코리아', min: 360 },
-    { title: '코스맥스 중국법인, 광저우 제2공장 증설 완료…생산능력 40% 확대', desc: '코스맥스 중국 법인이 광저우 제2공장 증설 공사를 완료하고 본격 가동에 들어갔다. 연간 생산 능력이 기존 대비 40% 증가할 전망이다.', pub: '이데일리', min: 720 },
-    { title: '이경수 코스맥스 회장, K-뷰티 글로벌 포럼 기조연설', desc: '코스맥스 이경수 회장이 서울에서 열린 K-뷰티 글로벌 포럼에서 한국 화장품 ODM 산업의 미래 전략을 주제로 기조연설을 했다.', pub: '뉴스1', min: 1440 },
-    { title: '코스맥스, ESG 경영보고서 발간…탄소중립 2040 선언', desc: '코스맥스가 2025년 ESG 경영보고서를 발간하고 2040년 탄소 중립 달성을 선언했다. 친환경 패키징 전환율은 현재 45%다.', pub: '서울경제', min: 2100 },
+    { title: '코스맥스, 2026년 1분기 역대 최대 실적 달성…매출 5,200억원', desc: '코스맥스가 글로벌 ODM 사업 확대에 힘입어 1분기 매출 5,200억원을 기록했다.', pub: '한국경제', min: 5 },
+    { title: '코스맥스BTI, 2대주주 지분 거래 공시…경영권 변동 없어', desc: '코스맥스 그룹의 지주회사인 코스맥스BTI가 2대주주의 지분 일부 처분 사실을 공시했다.', pub: '매일경제', min: 42 },
+    { title: 'K-뷰티 ODM 1위 코스맥스, 미국 오하이오 신규 생산라인 가동', desc: '코스맥스가 미국 오하이오주 생산법인에 신규 라인을 증설하며 북미 시장 공략을 강화한다.', pub: '조선일보', min: 118 },
+    { title: '코스맥스, 헬로바이옴 공동개발 마이크로바이옴 원료 5종 공개', desc: '코스맥스는 헬로바이옴과 공동 개발한 마이크로바이옴 화장품 원료 5종을 공개했다.', pub: '연합뉴스', min: 235 },
+    { title: '코스맥스 M2C 전략 성과…국내 뷰티 브랜드 20개사 신규 계약', desc: '코스맥스의 M2C 디지털 전략이 중소 뷰티 브랜드들 사이에서 반향을 일으키고 있다.', pub: '코스인코리아', min: 360 },
+    { title: '코스맥스 중국법인, 광저우 제2공장 증설 완료…생산능력 40% 확대', desc: '코스맥스 중국 법인이 광저우 제2공장 증설 공사를 완료하고 본격 가동에 들어갔다.', pub: '이데일리', min: 720 },
+    { title: '이경수 코스맥스 회장, K-뷰티 글로벌 포럼 기조연설', desc: '코스맥스 이경수 회장이 서울에서 열린 K-뷰티 글로벌 포럼에서 기조연설을 했다.', pub: '뉴스1', min: 1440 },
+    { title: '코스맥스, ESG 경영보고서 발간…탄소중립 2040 선언', desc: '코스맥스가 2025년 ESG 경영보고서를 발간하고 2040년 탄소 중립 달성을 선언했다.', pub: '서울경제', min: 2100 },
   ];
   items.forEach((d, i) => {
     const link = `https://demo.cosmax-monitor.local/article-${i + 1}`;
@@ -936,7 +905,6 @@ app.get('/api/news', (req, res) => {
     (a, b) => new Date(b.pubDate) - new Date(a.pubDate)
   );
 
-  // Custom date range (takes priority over range preset)
   if (dateFrom || dateTo) {
     if (dateFrom) {
       const from = new Date(dateFrom);
@@ -949,15 +917,20 @@ app.get('/api/news', (req, res) => {
       articles = articles.filter(a => new Date(a.pubDate) <= to);
     }
   } else if (range !== 'all') {
-    const cutoffDays = { today: 1, week: 7, month: 30 };
-    const days = cutoffDays[range];
-    if (days) {
-      const cutoff = new Date(Date.now() - days * 86400000);
+    const now = new Date();
+    if (range === 'today') {
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      articles = articles.filter(a => new Date(a.pubDate) >= todayStart);
+    } else if (range === 'week') {
+      const cutoff = new Date(Date.now() - 7 * 86400000);
       articles = articles.filter(a => new Date(a.pubDate) >= cutoff);
+    } else if (range === 'month') {
+      // 이번달 1일~오늘 (서버 측 보조 처리 - 클라이언트에서 custom으로 전환하지만 혹시 직접 호출 시 대비)
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      articles = articles.filter(a => new Date(a.pubDate) >= monthStart);
     }
   }
 
-  // Keyword search
   if (q) {
     const qLower = q.toLowerCase();
     articles = articles.filter(
@@ -1000,13 +973,12 @@ app.post('/api/analyze', async (req, res) => {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
   if (!ANTHROPIC_API_KEY) {
-    // Demo fallback
-    const demoScore = Math.floor(Math.random() * 3) + 2; // 2~4 for demo
+    const demoScore = Math.floor(Math.random() * 3) + 2;
     const labels = ['', '매우부정', '부정', '중립', '긍정', '매우긍정'];
     return res.json({
       score:     demoScore,
       sentiment: labels[demoScore],
-      comment:   `[데모 모드] Render 환경변수에 ANTHROPIC_API_KEY를 추가하면 실제 AI 분석이 제공됩니다.\n\n[핵심 메시지]\n기사 제목 "${title}"에 대한 분석입니다. 실제 분석을 위해 API 키를 설정해주세요.\n\n[홍보 관점 체크포인트]\n• 기사 논조 및 코스맥스 언급 맥락 확인 필요\n• 경쟁사 대비 포지셔닝 검토 필요\n\n[대응 권고]\nAPI 키 설정 후 정확한 분석 내용을 확인하세요.`,
+      comment:   `[데모 모드] Render 환경변수에 ANTHROPIC_API_KEY를 추가하면 실제 AI 분석이 제공됩니다.\n\n[핵심 메시지]\n기사 제목 "${title}"에 대한 분석입니다.\n\n[홍보 관점 체크포인트]\n• 기사 논조 및 코스맥스 언급 맥락 확인 필요\n• 경쟁사 대비 포지셔닝 검토 필요\n\n[대응 권고]\nAPI 키 설정 후 정확한 분석 내용을 확인하세요.`,
     });
   }
 
@@ -1028,7 +1000,6 @@ app.post('/api/analyze', async (req, res) => {
   [홍보 관점 체크포인트] 주목해야 할 사항 2~3가지 (불릿 포인트)
   [대응 권고] 홍보팀이 취해야 할 액션 아이템`;
 
-    // 모델 우선순위
     const MODELS = ['claude-haiku-4-5-20251001'];
     let lastErr = '';
     for (const model of MODELS) {
@@ -1063,7 +1034,6 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
-
 // ─── Claude web_search로 신규 보도자료 수집 ──────────────────────────────────
 async function fetchPRsWithClaude() {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -1094,7 +1064,6 @@ entity: Cosmax/Cosmax Group/Cosmax NBT/Cosmax BIO 중 하나. 최신순 10개.`
       }
     );
 
-    // 텍스트 블록에서 JSON 추출
     const blocks = res.data.content || [];
     const text   = blocks.filter(b => b.type === 'text').map(b => b.text).join('');
     const match  = text.match(/\[[\s\S]*?\]/);
@@ -1132,8 +1101,6 @@ entity: Cosmax/Cosmax Group/Cosmax NBT/Cosmax BIO 중 하나. 최신순 10개.`
 }
 
 // ─── 보도자료 API ─────────────────────────────────────────────────────────────
-
-// 수동 보도자료 새로고침
 app.post('/api/pr-refresh', async (req, res) => {
   await fetchPRsWithClaude();
   res.json({ ok: true, total: pressReleases.length });
@@ -1148,13 +1115,10 @@ app.get('/api/press-releases', (req, res) => {
 });
 
 // ─── Push API ─────────────────────────────────────────────────────────────────
-
-// VAPID 공개키 제공
 app.get('/api/vapid-key', (req, res) => {
   res.json({ key: process.env.VAPID_PUBLIC_KEY || null });
 });
 
-// 구독 등록
 app.post('/api/subscribe', (req, res) => {
   const sub = req.body;
   if (!sub?.endpoint) return res.status(400).json({ error: 'invalid' });
@@ -1163,7 +1127,6 @@ app.post('/api/subscribe', (req, res) => {
   res.json({ ok: true });
 });
 
-// 구독 해제
 app.delete('/api/unsubscribe', (req, res) => {
   const { endpoint } = req.body;
   if (endpoint) subscriptions.delete(endpoint);
@@ -1171,29 +1134,8 @@ app.delete('/api/unsubscribe', (req, res) => {
   res.json({ ok: true });
 });
 
-// ─── GET /api/press-releases ─────────────────────────────────────────────────
-app.get('/api/press-releases', async (req, res) => {
-  const { category = 'all', q = '' } = req.query;
-  let items = prCache.items;
-
-  if (category !== 'all') {
-    items = items.filter(p => p.category === category);
-  }
-  if (q) {
-    const ql = q.toLowerCase();
-    items = items.filter(p => p.title.toLowerCase().includes(ql));
-  }
-  res.json({
-    items,
-    total: items.length,
-    lastFetch: prCache.lastFetch,
-    categories: Object.keys(CATEGORY_COLORS),
-  });
-});
-
 // ─── GET /api/pr-articles ─────────────────────────────────────────────────────
 app.get('/api/pr-articles', (req, res) => {
-  // 보도자료와 연관된 뉴스 기사 ID 목록
   const matched = [];
   for (const article of articlesMap.values()) {
     if (matchArticleToPR(article)) {
@@ -1202,6 +1144,9 @@ app.get('/api/pr-articles', (req, res) => {
   }
   res.json({ matched });
 });
+
+// ─── GET /ping ────────────────────────────────────────────────────────────────
+app.get('/ping', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, async () => {
@@ -1213,7 +1158,7 @@ app.listen(PORT, async () => {
   if (DEMO_MODE) {
     console.log('⚠️  NAVER_CLIENT_ID 없음 → 데모 모드\n');
     loadDemoData();
-    fetchPRsWithClaude(); // 보도자료 로드 (Claude 검색)
+    fetchPRsWithClaude();
     setInterval(() => {
       const titles = [
         '코스맥스, 신규 파트너십 계약 체결 발표',
@@ -1244,8 +1189,7 @@ app.listen(PORT, async () => {
   } else {
     console.log(`📰 검색 키워드: "${process.env.SEARCH_QUERY || '코스맥스'}"`);
     await loadFromSupabase();
-    await fetchPRsWithClaude(); // 보도자료 초기 로드 (Claude 검색)
-    // 평일 09:00 / 12:00 / 15:00 / 18:00 KST 보도자료 자동 수집 (UTC: 0,3,6,9시)
+    await fetchPRsWithClaude();
     cron.schedule('0 0,3,6,9 * * 1-5', fetchPRsWithClaude);
     await pollAndProcess();
     cron.schedule('* * * * *', pollAndProcess);
