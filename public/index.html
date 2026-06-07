@@ -160,6 +160,10 @@
       display: flex; flex-direction: column; gap: 6px;
       margin: 10px 0 6px;
     }
+    .search-row {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .search-row .search-wrap { flex: 1; min-width: 0; }
 
     .tabs {
       display: flex; background: var(--surface);
@@ -178,7 +182,7 @@
     .tab.date-active        { background: var(--yellow); color: #000; }
 
     .search-wrap {
-      flex: 1; min-width: 160px; position: relative;
+      flex: 1; min-width: 0; position: relative;
     }
     .search-ico {
       position: absolute; left: 10px; top: 50%;
@@ -714,10 +718,13 @@
 
     .filter-row {
       display: flex; align-items: center; gap: 8px;
-      padding: 0 16px; overflow-x: auto;
-      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      flex-wrap: nowrap;
     }
-    .filter-row::-webkit-scrollbar { display: none; }
+    .filter-row-tabs {
+      flex: 1; min-width: 0;
+      overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    }
+    .filter-row-tabs::-webkit-scrollbar { display: none; }
 
     /* ═══ PR 토글 스위치 ═════════════════════════════════════════════════════ */
     .pr-toggle-inline {
@@ -882,30 +889,34 @@
   <!-- Controls -->
   <div class="controls">
     <div class="filter-row">
-    <div class="tabs" id="tabs">
-      <button class="tab active" data-range="all"   onclick="setRange(this)">전체</button>
-      <button class="tab"        data-range="today" onclick="setRange(this)">오늘</button>
-      <button class="tab"        data-range="week"  onclick="setRange(this)">이번주</button>
-      <button class="tab"        data-range="month" onclick="setRange(this)">이번달</button>
-      <button class="tab"        data-range="custom" id="tab-date" onclick="toggleDateFilter(this)">📅 날짜</button>
-    </div>
-    <div class="pr-toggle-inline">
-      <span class="pr-toggle-label">보도자료</span>
-      <div class="pr-switch-wrap" id="pr-switch" onclick="togglePRSwitch()">
-        <div class="pr-switch-knob"></div>
+      <div class="filter-row-tabs">
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-range="all"   onclick="setRange(this)">전체</button>
+          <button class="tab"        data-range="today" onclick="setRange(this)">오늘</button>
+          <button class="tab"        data-range="week"  onclick="setRange(this)">이번주</button>
+          <button class="tab"        data-range="month" onclick="setRange(this)">이번달</button>
+          <button class="tab"        data-range="custom" id="tab-date" onclick="toggleDateFilter(this)">📅 날짜</button>
+        </div>
       </div>
-    </div>
+      <div class="pr-toggle-inline">
+        <span class="pr-toggle-label">보도자료</span>
+        <div class="pr-switch-wrap" id="pr-switch" onclick="togglePRSwitch()">
+          <div class="pr-switch-knob"></div>
+        </div>
+      </div>
     </div><!-- /filter-row -->
-    <div class="search-wrap">
-      <span class="search-ico">🔍</span>
-      <input id="search-input" type="text" class="search-input"
-        placeholder="제목·언론사·기자명 검색..."
-        oninput="onSearch(this.value)" autocomplete="off">
-      <span class="search-clear" id="search-clear" onclick="clearSearch()">✕</span>
+    <div class="search-row">
+      <div class="search-wrap">
+        <span class="search-ico">🔍</span>
+        <input id="search-input" type="text" class="search-input"
+          placeholder="제목·언론사·기자명 검색..."
+          oninput="onSearch(this.value)" autocomplete="off">
+        <span class="search-clear" id="search-clear" onclick="clearSearch()">✕</span>
+      </div>
+      <button class="refresh-btn" id="refresh-btn" onclick="onRefreshClick()" title="새로고침">
+        <span>↻</span>
+      </button>
     </div>
-    <button class="refresh-btn" id="refresh-btn" onclick="onRefreshClick()" title="새로고침">
-      <span>↻</span>
-    </button>
   </div>
 
   <!-- Date range filter -->
@@ -921,7 +932,6 @@
 
   <!-- Meta row -->
   <div class="meta-row">
-    <!-- PR 토글 스위치 -->
     <div class="count-text">검색 결과 <strong id="count-val">—</strong>건</div>
     <div class="poll-text" id="poll-text">—</div>
   </div>
@@ -1058,12 +1068,12 @@ function checkPRLabel(a) {
   const aText = (a.title||'') + ' ' + (a.description||'');
   const aDate = new Date(a.pubDate);
   const isMatch = a.isPR || prData.some(pr => {
-    if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 14) return false;
-    const words = (pr.title.match(/[가-힣]{3,}/g)||[]);
+    if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 7) return false;
+    const words = (pr.title.match(/[가-힣]{2,}/g)||[]);
     return words.filter(w => aText.includes(w)).length >= 2;
   });
   if (!isMatch) return '';
-  return '<div class="pr-label" style="background:rgba(150,150,150,0.12);color:#9CA3AF;border:1px solid rgba(150,150,150,0.25)">📋 보도자료</div>';
+  return '<div class="pr-label" style="background:rgba(150,150,150,0.12);color:#9CA3AF;border:1px solid rgba(150,150,150,0.25)">보도자료</div>';
 }
 
 async function loadArticles(reset = true) {
@@ -1797,9 +1807,6 @@ function closePRPanel() {
 
   // Service Worker 등록
   await registerSW();
-
-  // 보도자료 데이터 백그라운드 로드 (PR 라벨용)
-  loadPressReleases().catch(() => {});
 
   // 기존 알림 권한/구독 복원
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
