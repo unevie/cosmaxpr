@@ -157,8 +157,8 @@
 
     /* ═══ CONTROLS ════════════════════════════════════════════════════ */
     .controls {
-      display: flex; align-items: center; gap: 8px;
-      margin: 12px 0 8px; flex-wrap: wrap;
+      display: flex; flex-direction: column; gap: 6px;
+      margin: 10px 0 6px;
     }
 
     .tabs {
@@ -710,6 +710,42 @@
       background: rgba(59,130,246,0.15); border-color: #3B82F6; color: #3B82F6;
     }
     .tab-toggle.on::before { content: '● '; font-size: 8px; color: #3B82F6; }
+
+
+    .filter-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 16px; overflow-x: auto;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    }
+    .filter-row::-webkit-scrollbar { display: none; }
+
+    /* ═══ PR 토글 스위치 ═════════════════════════════════════════════════════ */
+    .pr-toggle-inline {
+      display: flex; align-items: center; gap: 5px;
+      margin-left: auto; padding-left: 4px; flex-shrink: 0;
+    }
+    .pr-toggle-label {
+      font-size: 10px; font-family: var(--mono); color: var(--text-muted);
+      letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .pr-switch-wrap {
+      width: 42px; height: 24px; border-radius: 12px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      position: relative; cursor: pointer;
+      transition: background 0.25s, border-color 0.25s;
+      flex-shrink: 0;
+    }
+    .pr-switch-wrap.on {
+      background: #3B82F6; border-color: #3B82F6;
+    }
+    .pr-switch-knob {
+      position: absolute; width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; top: 2px; left: 2px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+      transition: transform 0.25s cubic-bezier(.32,.72,0,1);
+    }
+    .pr-switch-wrap.on .pr-switch-knob { transform: translateX(18px); }
+
     /* ═══ PULL TO REFRESH ════════════════════════════════════════ */
     #ptr-indicator {
       position: fixed;
@@ -845,14 +881,21 @@
 
   <!-- Controls -->
   <div class="controls">
+    <div class="filter-row">
     <div class="tabs" id="tabs">
       <button class="tab active" data-range="all"   onclick="setRange(this)">전체</button>
       <button class="tab"        data-range="today" onclick="setRange(this)">오늘</button>
       <button class="tab"        data-range="week"  onclick="setRange(this)">이번주</button>
       <button class="tab"        data-range="month" onclick="setRange(this)">이번달</button>
       <button class="tab"        data-range="custom" id="tab-date" onclick="toggleDateFilter(this)">📅 날짜</button>
-      <button class="tab-toggle" id="tab-pr" onclick="setFilterPR(this)">📋 보도자료</button>
     </div>
+    <div class="pr-toggle-inline">
+      <span class="pr-toggle-label">📋 보도자료</span>
+      <div class="pr-switch-wrap" id="pr-switch" onclick="togglePRSwitch()">
+        <div class="pr-switch-knob"></div>
+      </div>
+    </div>
+    </div><!-- /filter-row -->
     <div class="search-wrap">
       <span class="search-ico">🔍</span>
       <input id="search-input" type="text" class="search-input"
@@ -878,6 +921,13 @@
 
   <!-- Meta row -->
   <div class="meta-row">
+    <!-- PR 토글 스위치 -->
+    <div class="pr-toggle-row">
+      <span class="pr-toggle-label">📋 보도자료</span>
+      <div class="pr-switch-wrap" id="pr-switch" onclick="togglePRSwitch()">
+        <div class="pr-switch-knob"></div>
+      </div>
+    </div>
     <div class="count-text">검색 결과 <strong id="count-val">—</strong>건</div>
     <div class="poll-text" id="poll-text">—</div>
   </div>
@@ -1010,22 +1060,16 @@ function renderList(articles, append = false) {
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 function checkPRLabel(a) {
-  if (!prData.length) return '';
+  if (!prData || !prData.length) return '';
   const aText = (a.title||'') + ' ' + (a.description||'');
   const aDate = new Date(a.pubDate);
-  let matchedCat = a.prCat || null;
-  if (!matchedCat) {
-    for (const pr of prData) {
-      if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 7) continue;
-      const words = (pr.title.match(/[가-힣]{2,}/g)||[]);
-      if (words.filter(w => aText.includes(w)).length >= 2) {
-        matchedCat = pr.cat; break;
-      }
-    }
-  }
-  if (!matchedCat) return '';
-  const color = PR_CAT_COLORS[matchedCat] || '#94A3B8';
-  return '<div class="pr-label" style="background:' + color + '22;color:' + color + ';border:1px solid ' + color + '44">📋 ' + matchedCat + '</div>';
+  const isMatch = a.isPR || prData.some(pr => {
+    if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 7) return false;
+    const words = (pr.title.match(/[가-힣]{2,}/g)||[]);
+    return words.filter(w => aText.includes(w)).length >= 2;
+  });
+  if (!isMatch) return '';
+  return '<div class="pr-label" style="background:rgba(150,150,150,0.12);color:#9CA3AF;border:1px solid rgba(150,150,150,0.25)">📋 보도자료</div>';
 }
 
 async function loadArticles(reset = true) {
@@ -1236,9 +1280,7 @@ function notifyBrowser(article) {
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
 function setRange(btn) {
-  S.prFilter = false;
-  const tabPR = document.getElementById('tab-pr');
-  if (tabPR) { tabPR.classList.remove('active'); tabPR.classList.remove('on'); }
+  // 날짜 필터 변경 시 PR 스위치는 유지 (독립 필터)
   if (btn.dataset.range === 'custom') return; // handled by toggleDateFilter
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active', 'date-active'));
   btn.classList.add('active');
@@ -1668,6 +1710,8 @@ async function loadPressReleases() {
   try {
     prData = await fetch('/api/press-releases').then(r => r.json());
     renderPRList();
+    // prData 로드 완료 → 기사 목록 PR 라벨 반영 (재렌더)
+    if (S.articles && S.articles.length) renderList(S.articles, false);
   } catch(e) {
     document.getElementById('pr-list').innerHTML =
       '<div class="state-box"><div class="state-desc">불러오기 실패</div></div>';
@@ -1713,14 +1757,11 @@ async function refreshPR() {
   btn.classList.remove('spinning');
 }
 
-function setFilterPR(btn) {
-  // 토글 방식
+function togglePRSwitch() {
   S.prFilter = !S.prFilter;
-  btn.classList.toggle('on', S.prFilter);
-  // 기존 탭 active 제거 (토글 켜면 다른 탭 비활성)
-  if (S.prFilter) {
-    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
-  }
+  const sw = document.getElementById('pr-switch');
+  if (sw) sw.classList.toggle('on', S.prFilter);
+  if (navigator.vibrate) navigator.vibrate([4]);
   S.page = 1;
   loadArticles(true);
 }
