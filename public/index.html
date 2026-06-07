@@ -890,7 +890,7 @@
       <button class="tab"        data-range="custom" id="tab-date" onclick="toggleDateFilter(this)">📅 날짜</button>
     </div>
     <div class="pr-toggle-inline">
-      <span class="pr-toggle-label">📋 보도자료</span>
+      <span class="pr-toggle-label">보도자료</span>
       <div class="pr-switch-wrap" id="pr-switch" onclick="togglePRSwitch()">
         <div class="pr-switch-knob"></div>
       </div>
@@ -922,12 +922,6 @@
   <!-- Meta row -->
   <div class="meta-row">
     <!-- PR 토글 스위치 -->
-    <div class="pr-toggle-row">
-      <span class="pr-toggle-label">📋 보도자료</span>
-      <div class="pr-switch-wrap" id="pr-switch" onclick="togglePRSwitch()">
-        <div class="pr-switch-knob"></div>
-      </div>
-    </div>
     <div class="count-text">검색 결과 <strong id="count-val">—</strong>건</div>
     <div class="poll-text" id="poll-text">—</div>
   </div>
@@ -1064,8 +1058,8 @@ function checkPRLabel(a) {
   const aText = (a.title||'') + ' ' + (a.description||'');
   const aDate = new Date(a.pubDate);
   const isMatch = a.isPR || prData.some(pr => {
-    if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 7) return false;
-    const words = (pr.title.match(/[가-힣]{2,}/g)||[]);
+    if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 14) return false;
+    const words = (pr.title.match(/[가-힣]{3,}/g)||[]);
     return words.filter(w => aText.includes(w)).length >= 2;
   });
   if (!isMatch) return '';
@@ -1803,6 +1797,9 @@ function closePRPanel() {
 
   // Service Worker 등록
   await registerSW();
+
+  // 보도자료 데이터 백그라운드 로드 (PR 라벨용)
+  loadPressReleases().catch(() => {});
 
   // 기존 알림 권한/구독 복원
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
