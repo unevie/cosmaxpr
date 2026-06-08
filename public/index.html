@@ -66,11 +66,11 @@
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
-      display: flex; align-items: flex-end;
-      padding: 0 16px 10px;
+      display: flex; align-items: center;
+      padding: 0 16px;
+      padding-top: env(safe-area-inset-top);
       gap: 14px;
       z-index: 200;
-      padding-top: env(safe-area-inset-top);
     }
 
     .logo {
@@ -1066,12 +1066,12 @@ function renderList(articles, append = false) {
 
 function checkPRLabel(a) {
   if (!prData || !prData.length) return '';
-  const aText = (a.title||'') + ' ' + (a.description||'');
+  const aTitle = (a.title||'');          // 기사 제목만 (본문 제외)
   const aDate = new Date(a.pubDate);
   const isMatch = a.isPR || prData.some(pr => {
     if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 7) return false;
-    const words = (pr.title.match(/[가-힣]{2,}/g)||[]);
-    return words.filter(w => aText.includes(w)).length >= 2;
+    const words = (pr.title.match(/[가-힣]{3,}/g)||[]); // 3글자 이상 단어만
+    return words.filter(w => aTitle.includes(w)).length >= 3; // 3개 이상 매칭
   });
   if (!isMatch) return '';
   return '<div class="pr-label" style="color:#fff">보도자료</div>';

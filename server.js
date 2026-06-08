@@ -806,14 +806,14 @@ function classifyPR(title) {
 
 function matchPR(article) {
   const aDate = new Date(article.pubDate);
-  const aTitle = (article.title + ' ' + (article.description||'')).replace(/<[^>]+>/g,'');
+  const aTitle = (article.title||'').replace(/<[^>]+>/g,''); // 기사 제목만 (본문 제외)
   for (const pr of pressReleases) {
     const prDate = new Date(pr.date);
     const diffDays = Math.abs((aDate - prDate) / 86400000);
-    if (diffDays > 14) continue;
-    const prWords = pr.title.match(/[가-힣]{3,}|[A-Za-z]{3,}/g) || [];
+    if (diffDays > 7) continue;
+    const prWords = pr.title.match(/[가-힣]{3,}|[A-Za-z]{3,}/g) || []; // 3글자 이상
     const matches = prWords.filter(w => aTitle.includes(w));
-    if (matches.length >= 2) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
+    if (matches.length >= 3) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat }; // 3개 이상
   }
   return null;
 }
