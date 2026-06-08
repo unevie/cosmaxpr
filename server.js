@@ -805,15 +805,19 @@ function classifyPR(title) {
 }
 
 function matchPR(article) {
-  const aDate = new Date(article.pubDate);
-  const aTitle = (article.title||'').replace(/<[^>]+>/g,''); // 기사 제목만 (본문 제외)
+  const aDate  = new Date(article.pubDate);
+  const aTitle = (article.title||'').replace(/<[^>]+>/g,'');
+  const aDesc  = (article.description||'').replace(/<[^>]+>/g,'');
+  // 제목 또는 부제에 "코스맥스" 없으면 제외
+  if (!aTitle.includes('코스맥스') && !aDesc.includes('코스맥스')) return null;
+  const searchText = aTitle + ' ' + aDesc;
   for (const pr of pressReleases) {
     const prDate = new Date(pr.date);
     const diffDays = Math.abs((aDate - prDate) / 86400000);
     if (diffDays > 7) continue;
-    const prWords = pr.title.match(/[가-힣]{3,}|[A-Za-z]{3,}/g) || []; // 3글자 이상
-    const matches = prWords.filter(w => aTitle.includes(w));
-    if (matches.length >= 3) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat }; // 3개 이상
+    const prWords = pr.title.match(/[가-힣]{3,}|[A-Za-z]{3,}/g) || [];
+    const matches = prWords.filter(w => searchText.includes(w));
+    if (matches.length >= 3) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
   }
   return null;
 }

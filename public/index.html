@@ -66,8 +66,8 @@
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
-      display: flex; align-items: center;
-      padding: 0 16px;
+      display: flex; align-items: flex-end;
+      padding: 0 16px 12px;
       padding-top: env(safe-area-inset-top);
       gap: 14px;
       z-index: 200;
@@ -88,7 +88,7 @@
       letter-spacing: 0.12em; color: var(--text-muted); text-transform: uppercase;
     }
 
-    .live-badge { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+    .live-badge { display: flex; align-items: center; gap: 5px; flex-shrink: 0; margin-bottom: 2px; }
     .live-dot {
       width: 7px; height: 7px; border-radius: 50%;
       background: var(--text-dim); transition: background 0.3s;
@@ -1066,12 +1066,17 @@ function renderList(articles, append = false) {
 
 function checkPRLabel(a) {
   if (!prData || !prData.length) return '';
-  const aTitle = (a.title||'');          // 기사 제목만 (본문 제외)
+  const aTitle = (a.title||'');
+  const aDesc  = (a.description||'');
+  // 제목 또는 부제에 "코스맥스" 없으면 제외
+  if (!aTitle.includes('코스맥스') && !aDesc.includes('코스맥스')) return '';
   const aDate = new Date(a.pubDate);
   const isMatch = a.isPR || prData.some(pr => {
     if (Math.abs(aDate - new Date(pr.date)) / 86400000 > 7) return false;
-    const words = (pr.title.match(/[가-힣]{3,}/g)||[]); // 3글자 이상 단어만
-    return words.filter(w => aTitle.includes(w)).length >= 3; // 3개 이상 매칭
+    const words = (pr.title.match(/[가-힣]{3,}/g)||[]);
+    // 키워드 매칭은 기사 제목+부제 모두에서 검색 (범위 확대)
+    const searchText = aTitle + ' ' + aDesc;
+    return words.filter(w => searchText.includes(w)).length >= 3;
   });
   if (!isMatch) return '';
   return '<div class="pr-label" style="color:#fff">보도자료</div>';
