@@ -790,6 +790,7 @@ const PR_HISTORY = [
   {date:'2026-05-26',entity:'Cosmax Group',title:'코스맥스 뉴욕 한복판서 K-뷰티 비전 제시 차세대 스킨케어 효능 원료 주목',cat:'대외 수상/행사'},
   {date:'2026-05-28',entity:'Cosmax',title:'코스맥스 이노베이션 라이브러리 글로벌 혁신 성과로 확대 개편',cat:'혁신 기술'},
   {date:'2026-06-05',entity:'Cosmax Group',title:'코스맥스 파트너사 원료 제안 프로세스 디지털화 공급망 다변화 속도',cat:'파트너십/MOU'},
+  {date:'2026-06-09',entity:'Cosmax Group',title:'코스맥스 가톨릭대와 코스메디컬·뷰티AI 인재 양성 맞손',cat:'공동 연구'},
 ];
 
 let pressReleases = [...PR_HISTORY];
