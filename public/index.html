@@ -1076,7 +1076,7 @@ function checkPRLabel(a) {
     const words = (pr.title.match(/[가-힣]{3,}/g)||[]);
     // 키워드 매칭은 기사 제목+부제 모두에서 검색 (범위 확대)
     const searchText = aTitle + ' ' + aDesc;
-    return words.filter(w => searchText.includes(w)).length >= 3;
+    return words.filter(w => searchText.includes(w)).length >= 4;
   });
   if (!isMatch) return '';
   return '<div class="pr-label" style="color:#fff">보도자료</div>';
@@ -1098,7 +1098,8 @@ async function loadArticles(reset = true) {
 
   try {
     const qs = new URLSearchParams({
-      page: S.page, limit: S.limit,
+      page: S.page,
+      limit: S.prFilter ? 500 : S.limit,  // prFilter ON이면 전체 가져오기
       q: S.query, range: S.range,
       dateFrom: S.dateFrom, dateTo: S.dateTo,
     });
@@ -1126,8 +1127,9 @@ async function loadArticles(reset = true) {
     const dispTotal = S.prFilter ? displayItems.length : data.total;
     document.getElementById('count-val').textContent = dispTotal.toLocaleString();
     const lm = document.getElementById('load-more');
-    lm.classList.toggle('show', S.hasMore);
-    if (S.hasMore) lm.textContent = `더 불러오기 (${data.total - S.page * S.limit}건 남음)`;
+    // prFilter ON이면 전체를 한번에 가져오므로 더 불러오기 불필요
+    lm.classList.toggle('show', S.hasMore && !S.prFilter);
+    if (S.hasMore && !S.prFilter) lm.textContent = `더 불러오기 (${data.total - S.page * S.limit}건 남음)`;
   } catch (e) {
     if (reset) document.getElementById('article-list').innerHTML =
       `<div class="state-box"><div class="state-icon">⚠️</div><div class="state-title">불러오기 실패</div><div class="state-desc">${e.message}</div></div>`;

@@ -818,7 +818,7 @@ function matchPR(article) {
     if (diffDays > 7) continue;
     const prWords = pr.title.match(/[가-힣]{3,}|[A-Za-z]{3,}/g) || [];
     const matches = prWords.filter(w => searchText.includes(w));
-    if (matches.length >= 3) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
+    if (matches.length >= 4) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
   }
   return null;
 }
