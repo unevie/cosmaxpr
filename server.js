@@ -791,6 +791,7 @@ const PR_HISTORY = [
   {date:'2026-05-28',entity:'Cosmax',title:'코스맥스 이노베이션 라이브러리 글로벌 혁신 성과로 확대 개편',cat:'혁신 기술'},
   {date:'2026-06-05',entity:'Cosmax Group',title:'코스맥스 파트너사 원료 제안 프로세스 디지털화 공급망 다변화 속도',cat:'파트너십/MOU'},
   {date:'2026-06-09',entity:'Cosmax Group',title:'코스맥스 가톨릭대와 코스메디컬·뷰티AI 인재 양성 맞손',cat:'공동 연구'},
+  {date:'2026-06-15',entity:'Cosmax Group',title:'코스맥스 스낵형 건기식에 베팅…젤리·액상스틱 CAPA 2배 키웠다',cat:'생산 인프라'},
 ];
 
 let pressReleases = [...PR_HISTORY];
@@ -817,8 +818,12 @@ function matchPR(article) {
     const diffDays = Math.abs((aDate - prDate) / 86400000);
     if (diffDays > 7) continue;
     const prWords = pr.title.match(/[가-힣]{3,}|[A-Za-z]{3,}/g) || [];
-    const matches = prWords.filter(w => searchText.includes(w));
-    if (matches.length >= 4) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
+    // 보도자료 핵심 단어가 기사 제목에 직접 2개 이상 → 즉시 매칭
+    const titleMatchCount = prWords.filter(w => aTitle.includes(w)).length;
+    if (titleMatchCount >= 2) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
+    // 기사 제목+부제 전체에서 3개 이상 매칭
+    if (prWords.filter(w => searchText.includes(w)).length >= 3)
+      return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
   }
   return null;
 }
