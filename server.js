@@ -1104,6 +1104,22 @@ entity: Cosmax/Cosmax Group/Cosmax NBT/Cosmax BIO 중 하나. 최신순 10개.`
 
     log('📋 보도자료 검색 완료 — 신규 ' + added + '건 (총 ' + pressReleases.length + '건)');
 
+    // 신규 보도자료가 추가됐으면 최근 7일 기사 전체 재매칭
+    if (added > 0) {
+      const cutoff = new Date(Date.now() - 7 * 86400000);
+      let reMatched = 0;
+      for (const [link, article] of articlesMap) {
+        if (new Date(article.pubDate) < cutoff) continue; // 7일 이전 기사 스킵
+        if (article.isPR) continue; // 이미 라벨된 기사 스킵
+        const matched = matchPR(article);
+        if (matched) {
+          article.isPR = true;
+          reMatched++;
+        }
+      }
+      if (reMatched > 0) log(`🔄 기사 재매칭 완료 — ${reMatched}건 라벨 갱신`);
+    }
+
   } catch (e) {
     const detail = e.response?.data ? JSON.stringify(e.response.data) : e.message;
     log('PR Claude 오류: ' + detail);
@@ -1112,8 +1128,10 @@ entity: Cosmax/Cosmax Group/Cosmax NBT/Cosmax BIO 중 하나. 최신순 10개.`
 
 // ─── 보도자료 API ─────────────────────────────────────────────────────────────
 app.post('/api/pr-refresh', async (req, res) => {
+  const before = pressReleases.length;
   await fetchPRsWithClaude();
-  res.json({ ok: true, total: pressReleases.length });
+  const added = pressReleases.length - before;
+  res.json({ ok: true, total: pressReleases.length, added });
 });
 
 app.get('/api/press-releases', (req, res) => {
