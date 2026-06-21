@@ -39,136 +39,152 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 }
 
 // ─── Publisher domain mapping ─────────────────────────────────────────────────
+// 구조: { name: '언론사명', type: '언론사유형' }
+// type 값 (네이버 뉴스스탠드 CP사 분류 기준):
+//   '종합일간지' | '방송/통신' | '경제/IT' | '인터넷신문' | '스포츠/연예' | '지역지' | '매거진/전문지'
 const PUBLISHER_DOMAINS = {
-  // ── 주요 일간지 ───────────────────────────────────────────────────────────
-  'hankyung.com':           '한국경제',
-  'mk.co.kr':               '매일경제',
-  'chosun.com':             '조선일보',
-  'joongang.co.kr':         '중앙일보',
-  'joins.com':              '중앙일보',
-  'donga.com':              '동아일보',
-  'hani.co.kr':             '한겨레',
-  'khan.co.kr':             '경향신문',
-  'kyunghyang.com':         '경향신문',
-  'seoul.co.kr':            '서울신문',
-  'kukinews.com':           '국민일보',
-  'munhwa.com':             '문화일보',
-  'hankookilbo.com':        '한국일보',
-  'imaeil.com':             '매일신문',
-  'busan.com':              '부산일보',
-  'kookje.co.kr':           '국제신문',
-  'kyeonggi.com':           '경기일보',
-  // ── 경제·통신 ────────────────────────────────────────────────────────────
-  'yonhapnews.co.kr':       '연합뉴스',
-  'yna.co.kr':              '연합뉴스',
-  'newsis.com':             '뉴시스',
-  'news1.kr':               '뉴스1',
-  'newspim.com':            '뉴스핌',
-  'edaily.co.kr':           '이데일리',
-  'mt.co.kr':               '머니투데이',
-  'moneys.mt.co.kr':        '머니S',
-  'sedaily.com':            '서울경제',
-  'fnnews.com':             '파이낸셜뉴스',
-  'asiae.co.kr':            '아시아경제',
-  'ajunews.com':            '아주경제',
-  'heraldcorp.com':         '헤럴드경제',
-  'heraldbiz.com':          '헤럴드경제',
-  'biz.heraldkorea.co.kr':  '헤럴드경제',
-  'segyebiz.com':           '세계비즈',
-  'naeil.com':              '내일신문',
-  // ── 방송·IT ──────────────────────────────────────────────────────────────
-  'etnews.com':             '전자신문',
-  'zdnet.co.kr':            'ZDNet코리아',
-  'inews24.com':            '아이뉴스24',
-  'dt.co.kr':               '디지털타임스',
-  'ddaily.co.kr':           '디지털데일리',
-  'bloter.net':             '블로터',
-  'itbiznews.com':          'IT비즈뉴스',
-  // ── 온라인 매체 ──────────────────────────────────────────────────────────
-  'ohmynews.com':           '오마이뉴스',
-  'mediatoday.co.kr':       '미디어오늘',
-  'nocutnews.co.kr':        '노컷뉴스',
-  'newstomato.com':         '뉴스토마토',
-  'dailian.co.kr':          '데일리안',
-  'newdaily.co.kr':         '뉴데일리',
-  'bizwatch.co.kr':         '비즈워치',
-  'businesspost.co.kr':     '비즈니스포스트',
-  'newsway.co.kr':          '뉴스웨이',
-  'thebell.co.kr':          '더벨',
-  'sisajournal.com':        '시사저널',
-  'sisain.co.kr':           '시사인',
-  'weekly.khan.co.kr':      '주간경향',
-  'mediapen.com':           '미디어펜',
-  'straightnews.co.kr':     '스트레이트뉴스',
-  'newscj.com':             '천지일보',
-  'joseilbo.com':           '조세일보',
-  'fetv.co.kr':             'FETV',
-  'news2day.co.kr':         '뉴스투데이',
-  'newstoday.co.kr':        '뉴스투데이',
-  'pinpointnews.co.kr':     '핀포인트뉴스',
-  'newsworks.co.kr':        '뉴스웍스',
-  'econovill.com':          '이코노빌',
-  'leader.co.kr':           '리더스경제',
-  'ttimes.co.kr':           'T타임스',
-  // ── 조선비즈 계열 ────────────────────────────────────────────────────────
-  'it.chosun.com':          '조선비즈',
-  'biz.chosun.com':         '조선비즈',
-  'chosunbiz.com':          '조선비즈',
-  // ── 뷰티·화장품 전문지 ────────────────────────────────────────────────────
-  'cosinkorea.com':         '코스인코리아',
-  'cncnews.co.kr':          'CNC뉴스',
-  'cosmorning.com':         '코스모닝',
-  'beautymecca.co.kr':      '뷰티메카',
-  'beautyhankook.com':      '뷰티한국',
-  'beautytimes.co.kr':      '뷰티타임스',
-  'cosmobeauty.kr':         '코스모뷰티',
-  'apparelnews.co.kr':      '어패럴뉴스',
-  'fashionbiz.co.kr':       '패션비즈',
-  // ── 스타트업·기업 ────────────────────────────────────────────────────────
-  'startuptoday.co.kr':     '스타트업투데이',
-  'thebk.co.kr':            '뷰티경제',
-  'theguru.co.kr':          '더구루',
-  'impacton.co':            '임팩트온',
-  'ceoscoredaily.com':      'CEO스코어데일리',
-  // ── 에너지·산업 ──────────────────────────────────────────────────────────
-  'ekn.kr':                 '에너지경제',
-  'eknnews.com':            '에너지경제',
-  'ekn.co.kr':              '에너지경제',
-  'ebn.co.kr':              'EBN산업뉴스',
-  'nbnnews.co.kr':          'NBN뉴스',
-  'cnbnews.com':            'CNB뉴스',
-  'greenpost.kr':           '그린포스트코리아',
-  'industry.co.kr':         'Industry뉴스',
-  // ── 글로벌·이코노믹 계열 ────────────────────────────────────────────────
-  'global-economic.co.kr':  '글로벌이코노믹',
-  'getnews.co.kr':          '글로벌이코노믹',
-  'globaltimes.kr':         '글로벌타임스',
-  // ── 기타 온라인 ──────────────────────────────────────────────────────────
-  'ine.co.kr':              '이뉴스투데이',
-  'enewstoday.co.kr':       '이뉴스투데이',
-  'shinailbo.co.kr':        '신아일보',
-  'thefirstmedia.co.kr':    '더퍼스트미디어',
-  'medicalworldnews.co.kr': '메디컬월드뉴스',
-  'meconomynews.com':       '시장경제',
-  'econonews.co.kr':        '이코노뉴스',
-  'dailyimpact.co.kr':      '데일리임팩트',
-  'safetimes.co.kr':        '안전저널',
-  'klnews.co.kr':           '한국물류신문',
-  'dhnews.co.kr':           '동화뉴스',
-  'mhns.co.kr':             '문화뉴스',
-  'kdfnews.com':            '한국면세뉴스',
-  'pennews.net':            '펜뉴스',
-  'pharmnews.com':          '팜뉴스',
-  'rapportian.com':         '라포르시안',
-  'vitanews.co.kr':         '비타뉴스',
-  'jejunews.com':           '제주뉴스',
-  'consumernews.co.kr':     '소비자가만드는신문',
-  'anewsa.com':             '아시아뉴스통신',
-  'm-i.kr':                 '마켓인사이트',
-  'kspnews.com':            'KSP뉴스',
-  'ifs.or.kr':              '미래경제연구원',
-  'wikileaks-kr.org':       '위키리크스한국',
+  // ── 종합일간지 ────────────────────────────────────────────────────────────
+  'chosun.com':             { name:'조선일보',     type:'종합일간지' },
+  'joongang.co.kr':         { name:'중앙일보',     type:'종합일간지' },
+  'joins.com':              { name:'중앙일보',     type:'종합일간지' },
+  'donga.com':              { name:'동아일보',     type:'종합일간지' },
+  'hani.co.kr':             { name:'한겨레',       type:'종합일간지' },
+  'khan.co.kr':             { name:'경향신문',     type:'종합일간지' },
+  'kyunghyang.com':         { name:'경향신문',     type:'종합일간지' },
+  'seoul.co.kr':            { name:'서울신문',     type:'종합일간지' },
+  'kukinews.com':           { name:'국민일보',     type:'종합일간지' },
+  'munhwa.com':             { name:'문화일보',     type:'종합일간지' },
+  'hankookilbo.com':        { name:'한국일보',     type:'종합일간지' },
+  // ── 방송/통신 ────────────────────────────────────────────────────────────
+  'yonhapnews.co.kr':       { name:'연합뉴스',     type:'방송/통신' },
+  'yna.co.kr':              { name:'연합뉴스',     type:'방송/통신' },
+  'newsis.com':             { name:'뉴시스',       type:'방송/통신' },
+  'news1.kr':               { name:'뉴스1',        type:'방송/통신' },
+  'kbs.co.kr':              { name:'KBS',          type:'방송/통신' },
+  'mbc.co.kr':              { name:'MBC',          type:'방송/통신' },
+  'sbs.co.kr':              { name:'SBS',          type:'방송/통신' },
+  'ytn.co.kr':              { name:'YTN',          type:'방송/통신' },
+  'mbn.co.kr':              { name:'MBN',          type:'방송/통신' },
+  'jtbc.co.kr':             { name:'JTBC',         type:'방송/통신' },
+  'channel.or.kr':          { name:'채널A',        type:'방송/통신' },
+  'tvchosun.com':           { name:'TV조선',       type:'방송/통신' },
+  // ── 경제/IT ──────────────────────────────────────────────────────────────
+  'hankyung.com':           { name:'한국경제',     type:'경제/IT' },
+  'mk.co.kr':               { name:'매일경제',     type:'경제/IT' },
+  'edaily.co.kr':           { name:'이데일리',     type:'경제/IT' },
+  'mt.co.kr':               { name:'머니투데이',   type:'경제/IT' },
+  'moneys.mt.co.kr':        { name:'머니S',        type:'경제/IT' },
+  'sedaily.com':            { name:'서울경제',     type:'경제/IT' },
+  'fnnews.com':             { name:'파이낸셜뉴스', type:'경제/IT' },
+  'asiae.co.kr':            { name:'아시아경제',   type:'경제/IT' },
+  'ajunews.com':            { name:'아주경제',     type:'경제/IT' },
+  'heraldcorp.com':         { name:'헤럴드경제',   type:'경제/IT' },
+  'heraldbiz.com':          { name:'헤럴드경제',   type:'경제/IT' },
+  'biz.heraldkorea.co.kr':  { name:'헤럴드경제',   type:'경제/IT' },
+  'newspim.com':            { name:'뉴스핌',       type:'경제/IT' },
+  'segyebiz.com':           { name:'세계비즈',     type:'경제/IT' },
+  'naeil.com':              { name:'내일신문',     type:'경제/IT' },
+  'it.chosun.com':          { name:'조선비즈',     type:'경제/IT' },
+  'biz.chosun.com':         { name:'조선비즈',     type:'경제/IT' },
+  'chosunbiz.com':          { name:'조선비즈',     type:'경제/IT' },
+  'etnews.com':             { name:'전자신문',     type:'경제/IT' },
+  'zdnet.co.kr':            { name:'ZDNet코리아',  type:'경제/IT' },
+  'inews24.com':            { name:'아이뉴스24',   type:'경제/IT' },
+  'dt.co.kr':               { name:'디지털타임스', type:'경제/IT' },
+  'ddaily.co.kr':           { name:'디지털데일리', type:'경제/IT' },
+  'bloter.net':             { name:'블로터',       type:'경제/IT' },
+  'itbiznews.com':          { name:'IT비즈뉴스',   type:'경제/IT' },
+  'ekn.kr':                 { name:'에너지경제',   type:'경제/IT' },
+  'eknnews.com':            { name:'에너지경제',   type:'경제/IT' },
+  'ekn.co.kr':              { name:'에너지경제',   type:'경제/IT' },
+  'ebn.co.kr':              { name:'EBN산업뉴스',  type:'경제/IT' },
+  'global-economic.co.kr':  { name:'글로벌이코노믹',type:'경제/IT' },
+  'getnews.co.kr':          { name:'글로벌이코노믹',type:'경제/IT' },
+  'joseilbo.com':           { name:'조세일보',     type:'경제/IT' },
+  'fetv.co.kr':             { name:'FETV',         type:'경제/IT' },
+  'm-i.kr':                 { name:'마켓인사이트', type:'경제/IT' },
+  // ── 인터넷신문 ───────────────────────────────────────────────────────────
+  'ohmynews.com':           { name:'오마이뉴스',   type:'인터넷신문' },
+  'mediatoday.co.kr':       { name:'미디어오늘',   type:'인터넷신문' },
+  'nocutnews.co.kr':        { name:'노컷뉴스',     type:'인터넷신문' },
+  'newstomato.com':         { name:'뉴스토마토',   type:'인터넷신문' },
+  'dailian.co.kr':          { name:'데일리안',     type:'인터넷신문' },
+  'newdaily.co.kr':         { name:'뉴데일리',     type:'인터넷신문' },
+  'bizwatch.co.kr':         { name:'비즈워치',     type:'인터넷신문' },
+  'businesspost.co.kr':     { name:'비즈니스포스트',type:'인터넷신문' },
+  'newsway.co.kr':          { name:'뉴스웨이',     type:'인터넷신문' },
+  'thebell.co.kr':          { name:'더벨',         type:'인터넷신문' },
+  'sisajournal.com':        { name:'시사저널',     type:'인터넷신문' },
+  'sisain.co.kr':           { name:'시사인',       type:'인터넷신문' },
+  'weekly.khan.co.kr':      { name:'주간경향',     type:'인터넷신문' },
+  'mediapen.com':           { name:'미디어펜',     type:'인터넷신문' },
+  'straightnews.co.kr':     { name:'스트레이트뉴스',type:'인터넷신문' },
+  'newscj.com':             { name:'천지일보',     type:'인터넷신문' },
+  'news2day.co.kr':         { name:'뉴스투데이',   type:'인터넷신문' },
+  'newstoday.co.kr':        { name:'뉴스투데이',   type:'인터넷신문' },
+  'pinpointnews.co.kr':     { name:'핀포인트뉴스', type:'인터넷신문' },
+  'newsworks.co.kr':        { name:'뉴스웍스',     type:'인터넷신문' },
+  'econovill.com':          { name:'이코노빌',     type:'인터넷신문' },
+  'leader.co.kr':           { name:'리더스경제',   type:'인터넷신문' },
+  'ttimes.co.kr':           { name:'T타임스',      type:'인터넷신문' },
+  'nbnnews.co.kr':          { name:'NBN뉴스',      type:'인터넷신문' },
+  'cnbnews.com':            { name:'CNB뉴스',      type:'인터넷신문' },
+  'greenpost.kr':           { name:'그린포스트코리아',type:'인터넷신문' },
+  'industry.co.kr':         { name:'Industry뉴스', type:'인터넷신문' },
+  'globaltimes.kr':         { name:'글로벌타임스', type:'인터넷신문' },
+  'ine.co.kr':              { name:'이뉴스투데이', type:'인터넷신문' },
+  'enewstoday.co.kr':       { name:'이뉴스투데이', type:'인터넷신문' },
+  'shinailbo.co.kr':        { name:'신아일보',     type:'인터넷신문' },
+  'thefirstmedia.co.kr':    { name:'더퍼스트미디어',type:'인터넷신문' },
+  'meconomynews.com':       { name:'시장경제',     type:'인터넷신문' },
+  'econonews.co.kr':        { name:'이코노뉴스',   type:'인터넷신문' },
+  'dailyimpact.co.kr':      { name:'데일리임팩트', type:'인터넷신문' },
+  'dhnews.co.kr':           { name:'동화뉴스',     type:'인터넷신문' },
+  'mhns.co.kr':             { name:'문화뉴스',     type:'인터넷신문' },
+  'pennews.net':            { name:'펜뉴스',       type:'인터넷신문' },
+  'anewsa.com':             { name:'아시아뉴스통신',type:'인터넷신문' },
+  'kspnews.com':            { name:'KSP뉴스',      type:'인터넷신문' },
+  'wikileaks-kr.org':       { name:'위키리크스한국',type:'인터넷신문' },
+  'startuptoday.co.kr':     { name:'스타트업투데이',type:'인터넷신문' },
+  'theguru.co.kr':          { name:'더구루',       type:'인터넷신문' },
+  'impacton.co':            { name:'임팩트온',     type:'인터넷신문' },
+  'ceoscoredaily.com':      { name:'CEO스코어데일리',type:'인터넷신문' },
+  // ── 지역지 ───────────────────────────────────────────────────────────────
+  'imaeil.com':             { name:'매일신문',     type:'지역지' },
+  'busan.com':              { name:'부산일보',     type:'지역지' },
+  'kookje.co.kr':           { name:'국제신문',     type:'지역지' },
+  'kyeonggi.com':           { name:'경기일보',     type:'지역지' },
+  'jejunews.com':           { name:'제주뉴스',     type:'지역지' },
+  // ── 매거진/전문지 ─────────────────────────────────────────────────────────
+  'cosinkorea.com':         { name:'코스인코리아', type:'매거진/전문지' },
+  'cncnews.co.kr':          { name:'CNC뉴스',      type:'매거진/전문지' },
+  'cosmorning.com':         { name:'코스모닝',     type:'매거진/전문지' },
+  'beautymecca.co.kr':      { name:'뷰티메카',     type:'매거진/전문지' },
+  'beautyhankook.com':      { name:'뷰티한국',     type:'매거진/전문지' },
+  'beautytimes.co.kr':      { name:'뷰티타임스',   type:'매거진/전문지' },
+  'cosmobeauty.kr':         { name:'코스모뷰티',   type:'매거진/전문지' },
+  'apparelnews.co.kr':      { name:'어패럴뉴스',   type:'매거진/전문지' },
+  'fashionbiz.co.kr':       { name:'패션비즈',     type:'매거진/전문지' },
+  'thebk.co.kr':            { name:'뷰티경제',     type:'매거진/전문지' },
+  'safetimes.co.kr':        { name:'안전저널',     type:'매거진/전문지' },
+  'klnews.co.kr':           { name:'한국물류신문', type:'매거진/전문지' },
+  'kdfnews.com':            { name:'한국면세뉴스', type:'매거진/전문지' },
+  'pharmnews.com':          { name:'팜뉴스',       type:'매거진/전문지' },
+  'rapportian.com':         { name:'라포르시안',   type:'매거진/전문지' },
+  'vitanews.co.kr':         { name:'비타뉴스',     type:'매거진/전문지' },
+  'consumernews.co.kr':     { name:'소비자가만드는신문',type:'매거진/전문지' },
+  'medicalworldnews.co.kr': { name:'메디컬월드뉴스',type:'매거진/전문지' },
+  'ifs.or.kr':              { name:'미래경제연구원',type:'매거진/전문지' },
 };
+
+// 언론사명에서 유형을 역조회하는 맵 (publisher 문자열 → type)
+const PUBLISHER_TYPE_MAP = (() => {
+  const m = {};
+  for (const v of Object.values(PUBLISHER_DOMAINS)) {
+    if (!m[v.name]) m[v.name] = v.type;
+  }
+  return m;
+})();
 
 
 // ─── 카테고리 색상 매핑 ────────────────────────────────────────────────────────
@@ -454,9 +470,9 @@ function extractPublisher(url) {
   if (!url) return '미상';
   try {
     const hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-    for (const [domain, name] of Object.entries(PUBLISHER_DOMAINS)) {
+    for (const [domain, info] of Object.entries(PUBLISHER_DOMAINS)) {
       if (hostname === domain || hostname.endsWith('.' + domain) || hostname.includes(domain)) {
-        return name;
+        return info.name;
       }
     }
     const parts = hostname.split('.');
@@ -464,6 +480,10 @@ function extractPublisher(url) {
   } catch {
     return '미상';
   }
+}
+
+function getPublisherType(publisherName) {
+  return PUBLISHER_TYPE_MAP[publisherName] || '기타';
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -891,6 +911,23 @@ function loadDemoData() {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ─── CORS (prdash.netlify.app 대시보드용) ────────────────────────────────────
+const ALLOWED_ORIGINS = [
+  'https://prdash.netlify.app',
+  'http://localhost:3000',
+  'http://localhost:5500',
+];
+app.use('/api/dashboard', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // ─── SSE endpoint ─────────────────────────────────────────────────────────────
 app.get('/api/stream', (req, res) => {
   res.set({
@@ -1172,6 +1209,129 @@ app.get('/api/pr-articles', (req, res) => {
   }
   res.json({ matched });
 });
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 대시보드 통계 API
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ─── GET /api/dashboard/overview ─────────────────────────────────────────────
+app.get('/api/dashboard/overview', (req, res) => {
+  const now        = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekAgo    = new Date(Date.now() - 7  * 86400000);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const all        = Array.from(articlesMap.values());
+
+  const today30    = all.filter(a => new Date(a.pubDate) >= todayStart);
+  const week7      = all.filter(a => new Date(a.pubDate) >= weekAgo);
+  const month      = all.filter(a => new Date(a.pubDate) >= monthStart);
+
+  const prCount30  = month.filter(a => a.isPR).length;
+  const prRatio    = month.length ? Math.round((prCount30 / month.length) * 100) : 0;
+
+  // 이번달 최다 언론사
+  const pubCount = {};
+  month.forEach(a => {
+    const p = a.publisher || '미상';
+    pubCount[p] = (pubCount[p] || 0) + 1;
+  });
+  const topPublisher = Object.entries(pubCount).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
+
+  res.json({
+    today:         today30.length,
+    week:          week7.length,
+    month:         month.length,
+    total:         all.length,
+    prRatio,
+    topPublisher,
+    lastUpdated:   lastPollTime?.toISOString() || null,
+  });
+});
+
+// ─── GET /api/dashboard/timeline ─────────────────────────────────────────────
+// query: period=daily|weekly|monthly, dateFrom=YYYY-MM-DD, dateTo=YYYY-MM-DD
+app.get('/api/dashboard/timeline', (req, res) => {
+  const { period = 'daily', dateFrom, dateTo } = req.query;
+  const all = Array.from(articlesMap.values());
+
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+  from.setHours(0, 0, 0, 0);
+  to.setHours(23, 59, 59, 999);
+
+  const filtered = all.filter(a => {
+    const d = new Date(a.pubDate);
+    return d >= from && d <= to;
+  });
+
+  const buckets = {};
+
+  filtered.forEach(a => {
+    const d = new Date(a.pubDate);
+    let key;
+    if (period === 'monthly') {
+      key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    } else if (period === 'weekly') {
+      const dayOfWeek = d.getDay();
+      const monday    = new Date(d);
+      monday.setDate(d.getDate() - ((dayOfWeek + 6) % 7));
+      key = monday.toISOString().slice(0, 10);
+    } else {
+      key = d.toISOString().slice(0, 10);
+    }
+    if (!buckets[key]) buckets[key] = { period: key, total: 0, pr: 0 };
+    buckets[key].total++;
+    if (a.isPR) buckets[key].pr++;
+  });
+
+  const result = Object.values(buckets).sort((a, b) => a.period.localeCompare(b.period));
+  res.json(result);
+});
+
+// ─── GET /api/dashboard/publishers ───────────────────────────────────────────
+// query: dateFrom, dateTo, limit=20
+app.get('/api/dashboard/publishers', (req, res) => {
+  const { dateFrom, dateTo, limit = 20 } = req.query;
+  const all = Array.from(articlesMap.values());
+
+  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
+  const to   = dateTo   ? new Date(dateTo)   : new Date();
+  from.setHours(0, 0, 0, 0);
+  to.setHours(23, 59, 59, 999);
+
+  const filtered = all.filter(a => {
+    const d = new Date(a.pubDate);
+    return d >= from && d <= to;
+  });
+
+  // 언론사별 집계
+  const pubMap = {};
+  filtered.forEach(a => {
+    const name = a.publisher || '미상';
+    const type = getPublisherType(name);
+    if (!pubMap[name]) pubMap[name] = { name, type, count: 0, prCount: 0 };
+    pubMap[name].count++;
+    if (a.isPR) pubMap[name].prCount++;
+  });
+
+  // 언론사 유형별 집계
+  const typeMap = {};
+  Object.values(pubMap).forEach(p => {
+    if (!typeMap[p.type]) typeMap[p.type] = { type: p.type, count: 0 };
+    typeMap[p.type].count += p.count;
+  });
+
+  const byPublisher = Object.values(pubMap)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, parseInt(limit));
+
+  const byType = Object.values(typeMap)
+    .sort((a, b) => b.count - a.count);
+
+  res.json({ byPublisher, byType });
+});
+
 
 // ─── GET /ping ────────────────────────────────────────────────────────────────
 app.get('/ping', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
