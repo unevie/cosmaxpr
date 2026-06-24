@@ -1225,125 +1225,134 @@ app.get('/api/pr-articles', (req, res) => {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 대시보드 통계 API
+// 대시보드 통계 API — Supabase 직접 쿼리 (전체 기간 지원)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ─── GET /api/dashboard/overview ─────────────────────────────────────────────
-app.get('/api/dashboard/overview', (req, res) => {
-  const now        = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const weekAgo    = new Date(Date.now() - 7  * 86400000);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const all        = Array.from(articlesMap.values());
-
-  const today30    = all.filter(a => new Date(a.pubDate) >= todayStart);
-  const week7      = all.filter(a => new Date(a.pubDate) >= weekAgo);
-  const month      = all.filter(a => new Date(a.pubDate) >= monthStart);
-
-  const prCount30  = month.filter(a => a.isPR).length;
-  const prRatio    = month.length ? Math.round((prCount30 / month.length) * 100) : 0;
-
-  // 이번달 최다 언론사
-  const pubCount = {};
-  month.forEach(a => {
-    const p = a.publisher || '미상';
-    pubCount[p] = (pubCount[p] || 0) + 1;
-  });
-  const topPublisher = Object.entries(pubCount).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
-
-  res.json({
-    today:         today30.length,
-    week:          week7.length,
-    month:         month.length,
-    total:         all.length,
-    prRatio,
-    topPublisher,
-    lastUpdated:   lastPollTime?.toISOString() || null,
-  });
-});
+// 언론사명 정규화 (DB에 잘못 저장된 값 보정)
+const GENERIC_PUBLISHERS = new Set(['NEWS','SPORTS','MEDIA','PRESS','TV','WEB','BLOG','MOBILE','M','N']);
+function normalizePublisher(name, link) {
+  if (!name || GENERIC_PUBLISHERS.has(name.toUpperCase())) {
+    return link ? extractPublisher(link) : '미상';
+  }
+  return name;
+}
 
 // ─── GET /api/dashboard/timeline ─────────────────────────────────────────────
-// query: period=daily|weekly|monthly, dateFrom=YYYY-MM-DD, dateTo=YYYY-MM-DD
-app.get('/api/dashboard/timeline', (req, res) => {
+app.get('/api/dashboard/timeline', async (req, res) => {
   const { period = 'daily', dateFrom, dateTo } = req.query;
-  const all = Array.from(articlesMap.values());
 
-  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
-  const to   = dateTo   ? new Date(dateTo)   : new Date();
-  from.setHours(0, 0, 0, 0);
-  to.setHours(23, 59, 59, 999);
+  const from = dateFrom || new Date(Date.now() - 30 * 86400000).toISOString().slice(0,10);
+  const to   = dateTo   || new Date().toISOString().slice(0,10);
 
-  const filtered = all.filter(a => {
-    const d = new Date(a.pubDate);
-    return d >= from && d <= to;
-  });
+  try {
+    // Supabase에서 해당 기간 전체 조회
+    let query = supabase
+      .from('news_articles')
+      .select('pub_date, is_pr')
+      .gte('pub_date', from + 'T00:00:00')
+      .lte('pub_date', to   + 'T23:59:59')
+      .order('pub_date', { ascending: true });
 
-  const buckets = {};
+    const { data, error } = await query;
+    if (error) throw error;
 
-  filtered.forEach(a => {
-    const d = new Date(a.pubDate);
-    let key;
-    if (period === 'monthly') {
-      key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    } else if (period === 'weekly') {
-      const dayOfWeek = d.getDay();
-      const monday    = new Date(d);
-      monday.setDate(d.getDate() - ((dayOfWeek + 6) % 7));
-      key = monday.toISOString().slice(0, 10);
-    } else {
-      key = d.toISOString().slice(0, 10);
-    }
-    if (!buckets[key]) buckets[key] = { period: key, total: 0, pr: 0 };
-    buckets[key].total++;
-    if (a.isPR) buckets[key].pr++;
-  });
+    const buckets = {};
+    (data || []).forEach(row => {
+      const d = new Date(row.pub_date);
+      let key;
+      if (period === 'monthly') {
+        key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      } else if (period === 'weekly') {
+        const mon = new Date(d);
+        mon.setDate(d.getDate() - ((d.getDay()+6)%7));
+        key = mon.toISOString().slice(0,10);
+      } else {
+        key = d.toISOString().slice(0,10);
+      }
+      if (!buckets[key]) buckets[key] = { period: key, total: 0, pr: 0 };
+      buckets[key].total++;
+      if (row.is_pr) buckets[key].pr++;
+    });
 
-  const result = Object.values(buckets).sort((a, b) => a.period.localeCompare(b.period));
-  res.json(result);
+    res.json(Object.values(buckets).sort((a,b) => a.period.localeCompare(b.period)));
+  } catch (e) {
+    // Supabase 오류 시 메모리 폴백
+    const all = Array.from(articlesMap.values());
+    const fromD = new Date(from); fromD.setHours(0,0,0,0);
+    const toD   = new Date(to);   toD.setHours(23,59,59,999);
+    const filtered = all.filter(a => { const d=new Date(a.pubDate); return d>=fromD && d<=toD; });
+    const buckets = {};
+    filtered.forEach(a => {
+      const d = new Date(a.pubDate);
+      const key = d.toISOString().slice(0,10);
+      if (!buckets[key]) buckets[key] = { period:key, total:0, pr:0 };
+      buckets[key].total++;
+      if (a.isPR) buckets[key].pr++;
+    });
+    res.json(Object.values(buckets).sort((a,b) => a.period.localeCompare(b.period)));
+  }
 });
 
 // ─── GET /api/dashboard/publishers ───────────────────────────────────────────
-// query: dateFrom, dateTo, limit=20
-app.get('/api/dashboard/publishers', (req, res) => {
-  const { dateFrom, dateTo, limit = 20 } = req.query;
-  const all = Array.from(articlesMap.values());
+app.get('/api/dashboard/publishers', async (req, res) => {
+  const { dateFrom, dateTo, limit = 30 } = req.query;
 
-  const from = dateFrom ? new Date(dateFrom) : new Date(Date.now() - 30 * 86400000);
-  const to   = dateTo   ? new Date(dateTo)   : new Date();
-  from.setHours(0, 0, 0, 0);
-  to.setHours(23, 59, 59, 999);
+  const from = dateFrom || new Date(Date.now() - 30 * 86400000).toISOString().slice(0,10);
+  const to   = dateTo   || new Date().toISOString().slice(0,10);
 
-  const filtered = all.filter(a => {
-    const d = new Date(a.pubDate);
-    return d >= from && d <= to;
-  });
+  try {
+    const { data, error } = await supabase
+      .from('news_articles')
+      .select('publisher, link, is_pr')
+      .gte('pub_date', from + 'T00:00:00')
+      .lte('pub_date', to   + 'T23:59:59');
+    if (error) throw error;
 
-  // 언론사별 집계
-  const pubMap = {};
-  filtered.forEach(a => {
-    const name = a.publisher || '미상';
-    const type = getPublisherType(name);
-    if (!pubMap[name]) pubMap[name] = { name, type, count: 0, prCount: 0 };
-    pubMap[name].count++;
-    if (a.isPR) pubMap[name].prCount++;
-  });
+    const pubMap = {};
+    (data || []).forEach(row => {
+      const name = normalizePublisher(row.publisher, row.link);
+      const type = getPublisherType(name);
+      if (!pubMap[name]) pubMap[name] = { name, type, count:0, prCount:0 };
+      pubMap[name].count++;
+      if (row.is_pr) pubMap[name].prCount++;
+    });
 
-  // 언론사 유형별 집계
-  const typeMap = {};
-  Object.values(pubMap).forEach(p => {
-    if (!typeMap[p.type]) typeMap[p.type] = { type: p.type, count: 0 };
-    typeMap[p.type].count += p.count;
-  });
+    const typeMap = {};
+    Object.values(pubMap).forEach(p => {
+      if (!typeMap[p.type]) typeMap[p.type] = { type:p.type, count:0 };
+      typeMap[p.type].count += p.count;
+    });
 
-  const byPublisher = Object.values(pubMap)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, parseInt(limit));
-
-  const byType = Object.values(typeMap)
-    .sort((a, b) => b.count - a.count);
-
-  res.json({ byPublisher, byType });
+    res.json({
+      byPublisher: Object.values(pubMap).filter(p=>p.name!=='미상').sort((a,b)=>b.count-a.count).slice(0, parseInt(limit)),
+      byType:      Object.values(typeMap).sort((a,b)=>b.count-a.count),
+    });
+  } catch (e) {
+    // 폴백: 메모리
+    const all = Array.from(articlesMap.values());
+    const fromD = new Date(from); fromD.setHours(0,0,0,0);
+    const toD   = new Date(to);   toD.setHours(23,59,59,999);
+    const filtered = all.filter(a => { const d=new Date(a.pubDate); return d>=fromD && d<=toD; });
+    const pubMap = {};
+    filtered.forEach(a => {
+      const name = normalizePublisher(a.publisher, a.link);
+      const type = getPublisherType(name);
+      if (!pubMap[name]) pubMap[name] = { name, type, count:0, prCount:0 };
+      pubMap[name].count++;
+      if (a.isPR) pubMap[name].prCount++;
+    });
+    const typeMap = {};
+    Object.values(pubMap).forEach(p => {
+      if (!typeMap[p.type]) typeMap[p.type] = { type:p.type, count:0 };
+      typeMap[p.type].count += p.count;
+    });
+    res.json({
+      byPublisher: Object.values(pubMap).filter(p=>p.name!=='미상').sort((a,b)=>b.count-a.count).slice(0,parseInt(limit)),
+      byType:      Object.values(typeMap).sort((a,b)=>b.count-a.count),
+    });
+  }
 });
+
 
 
 // ─── GET /ping ────────────────────────────────────────────────────────────────
