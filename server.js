@@ -475,8 +475,21 @@ function extractPublisher(url) {
         return info.name;
       }
     }
+    // 서브도메인 제거 후 재시도 (예: news.mt.co.kr → mt.co.kr)
     const parts = hostname.split('.');
-    return parts[0].toUpperCase() || '미상';
+    if (parts.length > 2) {
+      const rootDomain = parts.slice(1).join('.');
+      for (const [domain, info] of Object.entries(PUBLISHER_DOMAINS)) {
+        if (rootDomain === domain || rootDomain.endsWith('.' + domain) || rootDomain.includes(domain)) {
+          return info.name;
+        }
+      }
+    }
+    // 매핑 실패 시 '미상' 반환 (NEWS, SPORTS 같은 의미없는 값 방지)
+    const GENERIC = ['news', 'www', 'sports', 'media', 'press', 'tv', 'web'];
+    const first = parts[0];
+    if (GENERIC.includes(first)) return '미상';
+    return first.toUpperCase() || '미상';
   } catch {
     return '미상';
   }
