@@ -1355,6 +1355,145 @@ app.get('/api/dashboard/publishers', async (req, res) => {
 
 
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 소급 수집 API — 2026-01-01 ~ 최초 수집일 직전 (1회성)
+// GET /api/backfill?dryRun=true  → 실제 저장 없이 수집 건수만 확인
+// GET /api/backfill               → 실제 Supabase 저장
+// ══════════════════════════════════════════════════════════════════════════════
+app.get('/api/backfill', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Supabase 미연결' });
+  if (DEMO_MODE)  return res.status(503).json({ error: '데모 모드 — NAVER_CLIENT_ID 없음' });
+
+  const dryRun   = req.query.dryRun === 'true';
+  const BACKFILL_FROM = new Date('2026-01-01T00:00:00+09:00'); // KST 기준
+  const BACKFILL_TO   = new Date('2026-05-03T00:00:00+09:00'); // 최초 수집일 직전
+
+  // 수집 키워드 목록 — 다양한 쿼리로 커버리지 극대화
+  const QUERIES = [
+    '코스맥스',
+    'Cosmax',
+    '코스맥스 ODM',
+    '코스맥스 화장품',
+    '코스맥스 실적',
+    '코스맥스 연구',
+  ];
+
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+  const seen  = new Set(); // 중복 링크 방지
+  const collected = [];
+  const log_lines = [];
+  const lg = msg => { log_lines.push(msg); console.log('[backfill]', msg); };
+
+  lg(`소급 수집 시작 | 기간: 2026-01-01 ~ 2026-05-02 | dryRun: ${dryRun}`);
+
+  for (const query of QUERIES) {
+    lg(`▶ 쿼리: "${query}"`);
+    let queryHit = 0;
+    let querySkip = 0; // 기간 외
+
+    for (let start = 1; start <= 1000; start += 100) {
+      try {
+        const res2 = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+          params: { query, display: 100, start, sort: 'date' },
+          headers: {
+            'X-Naver-Client-Id':     process.env.NAVER_CLIENT_ID,
+            'X-Naver-Client-Secret': process.env.NAVER_CLIENT_SECRET,
+          },
+          timeout: 15000,
+        });
+
+        const items = res2.data.items || [];
+        if (items.length === 0) break; // 더 이상 결과 없음
+
+        let batchInRange = 0;
+        let tooOld = 0;
+
+        for (const item of items) {
+          const pubDate = new Date(item.pubDate);
+          const link    = item.originallink || item.link;
+
+          if (pubDate < BACKFILL_FROM) { tooOld++; continue; }
+          if (pubDate >= BACKFILL_TO)  { querySkip++; continue; } // 이미 DB에 있는 기간
+          if (seen.has(link))           continue;
+
+          seen.add(link);
+          batchInRange++;
+          queryHit++;
+
+          const article = {
+            title:       stripHtml(item.title),
+            link,
+            naverLink:   item.link,
+            description: stripHtml(item.description),
+            publisher:   extractPublisher(link),
+            pubDate,
+            isPR:        false,
+          };
+
+          collected.push(article);
+
+          if (!dryRun) {
+            await supabase.from('news_articles').upsert(
+              {
+                title:       article.title,
+                link:        article.link,
+                naver_link:  article.naverLink,
+                description: article.description,
+                publisher:   article.publisher,
+                pub_date:    article.pubDate.toISOString(),
+                is_new:      false,
+                is_pr:       false,
+              },
+              { onConflict: 'link', ignoreDuplicates: true }
+            );
+          }
+        }
+
+        lg(`  start=${start} | 수집범위내: ${batchInRange}건 | 기간외(최신): ${querySkip} | 너무오래됨: ${tooOld}`);
+
+        // 배치에서 기간 내 기사가 0개이고 너무 오래된 것만 있으면 더 파고들 필요 없음
+        if (tooOld > 0 && batchInRange === 0) {
+          lg(`  → 이 쿼리 더 이상 과거 데이터 없음, 다음 쿼리로`);
+          break;
+        }
+
+        await delay(300); // API 호출 간격 (429 방지)
+
+      } catch (err) {
+        const s = err.response?.status;
+        lg(`  ❌ API 오류 start=${start}: ${s || err.message}`);
+        if (s === 429) {
+          lg('  ⏳ 429 Too Many Requests — 2초 대기 후 재시도');
+          await delay(2000);
+        }
+        break;
+      }
+    }
+    lg(`  → "${query}" 소계: ${queryHit}건`);
+    await delay(500); // 쿼리 간 간격
+  }
+
+  // 월별 집계
+  const byMonth = {};
+  collected.forEach(a => {
+    const key = `${a.pubDate.getFullYear()}-${String(a.pubDate.getMonth()+1).padStart(2,'0')}`;
+    byMonth[key] = (byMonth[key] || 0) + 1;
+  });
+
+  lg(`
+✅ 완료 | 총 수집: ${collected.length}건 (중복 제거) | dryRun: ${dryRun}`);
+  lg('월별 분포: ' + JSON.stringify(byMonth));
+
+  res.json({
+    success:   true,
+    dryRun,
+    total:     collected.length,
+    byMonth,
+    logs:      log_lines,
+  });
+});
+
 // ─── GET /ping ────────────────────────────────────────────────────────────────
 app.get('/ping', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
