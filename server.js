@@ -175,6 +175,30 @@ const PUBLISHER_DOMAINS = {
   'consumernews.co.kr':     { name:'소비자가만드는신문',type:'매거진/전문지' },
   'medicalworldnews.co.kr': { name:'메디컬월드뉴스',type:'매거진/전문지' },
   'ifs.or.kr':              { name:'미래경제연구원',type:'매거진/전문지' },
+
+  // ── 소급 수집에서 발견된 추가 언론사 ──────────────────────────────────────
+  'etoday.co.kr':           { name:'이투데이',      type:'경제/IT' },
+  'digitaltoday.co.kr':     { name:'디지털투데이',  type:'경제/IT' },
+  'dealsite.co.kr':         { name:'딜사이트',      type:'경제/IT' },
+  'catchnews.co.kr':        { name:'캐치뉴스',      type:'인터넷신문' },
+  'dnews.co.kr':            { name:'대한경제',      type:'경제/IT' },
+  'biztribune.co.kr':       { name:'비즈트리뷴',   type:'인터넷신문' },
+  'megaeconomy.co.kr':      { name:'메가이코노미',  type:'인터넷신문' },
+  'youthdaily.co.kr':       { name:'청년일보',      type:'인터넷신문' },
+  'bokuennews.com':         { name:'보건뉴스',      type:'매거진/전문지' },
+  'globalepic.co.kr':       { name:'글로벌에픽',   type:'인터넷신문' },
+  'thefirstmedia.co.kr':    { name:'더퍼스트미디어',type:'인터넷신문' },
+  'newsdream.co.kr':        { name:'뉴스드림',      type:'인터넷신문' },
+  'hansbiz.co.kr':          { name:'한스경제',      type:'경제/IT' },
+  'theviewers.co.kr':       { name:'더뷰어스',      type:'인터넷신문' },
+  'businesskorea.co.kr':    { name:'비즈니스코리아',type:'인터넷신문' },
+  'koreaherald.com':        { name:'코리아헤럴드',  type:'종합일간지' },
+  'joongangenews.com':      { name:'중앙경제뉴스',  type:'인터넷신문' },
+  'k-health.com':           { name:'건강이 최우선', type:'매거진/전문지' },
+  'greened.kr':             { name:'그리니엄',      type:'인터넷신문' },
+  'daily.co.kr':            { name:'데일리',        type:'인터넷신문' },
+  'weekly.co.kr':           { name:'위클리',        type:'인터넷신문' },
+  'khealth.co.kr':          { name:'건강이 최우선', type:'매거진/전문지' },
 };
 
 // 언론사명에서 유형을 역조회하는 맵 (publisher 문자열 → type)
@@ -1410,10 +1434,11 @@ app.get('/api/backfill', async (req, res) => {
     {
       month: 5,
       from: new Date('2026-05-01T00:00:00+09:00'),
-      to:   new Date('2026-05-04T00:00:00+09:00'), // 최초 수집일 직전
+      to:   new Date('2026-06-01T00:00:00+09:00'), // 5월 말일까지
       queries: ['코스맥스', 'Cosmax', '코스맥스 ODM', '코스맥스 화장품',
                 '코스맥스 실적', '코스맥스 뉴욕', '코스맥스 발명',
-                '코스맥스바이오', '코스맥스 주가'],
+                '코스맥스바이오', '코스맥스 주가', '코스맥스 PPA',
+                '코스맥스 박람회', '코스맥스 이노베이션'],
     },
   ];
 
