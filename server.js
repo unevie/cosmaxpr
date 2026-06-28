@@ -1357,122 +1357,171 @@ app.get('/api/dashboard/publishers', async (req, res) => {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 소급 수집 API — 2026-01-01 ~ 최초 수집일 직전 (1회성)
+// 소급 수집 API v2 — 월별 분리 수집으로 커버리지 극대화
 // GET /api/backfill?dryRun=true  → 실제 저장 없이 수집 건수만 확인
 // GET /api/backfill               → 실제 Supabase 저장
+// GET /api/backfill?month=1       → 특정 월만 재수집 (1~5)
 // ══════════════════════════════════════════════════════════════════════════════
 app.get('/api/backfill', async (req, res) => {
   if (!supabase) return res.status(503).json({ error: 'Supabase 미연결' });
   if (DEMO_MODE)  return res.status(503).json({ error: '데모 모드 — NAVER_CLIENT_ID 없음' });
 
-  const dryRun   = req.query.dryRun === 'true';
-  const BACKFILL_FROM = new Date('2026-01-01T00:00:00+09:00'); // KST 기준
-  const BACKFILL_TO   = new Date('2026-05-03T00:00:00+09:00'); // 최초 수집일 직전
+  const dryRun     = req.query.dryRun === 'true';
+  const onlyMonth  = req.query.month ? parseInt(req.query.month) : null; // 특정 월만
 
-  // 수집 키워드 목록 — 다양한 쿼리로 커버리지 극대화
-  const QUERIES = [
-    '코스맥스',
-    'Cosmax',
-    '코스맥스 ODM',
-    '코스맥스 화장품',
-    '코스맥스 실적',
-    '코스맥스 연구',
+  // 월별 수집 설정 — 각 월마다 from/to + 특화 쿼리
+  const MONTH_CONFIGS = [
+    {
+      month: 1,
+      from: new Date('2026-01-01T00:00:00+09:00'),
+      to:   new Date('2026-02-01T00:00:00+09:00'),
+      queries: ['코스맥스', 'Cosmax', '코스맥스 ODM', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 연구', '코스맥스 신년',
+                '코스맥스 CES', '코스맥스 1분기', '코스맥스바이오',
+                '코스맥스 주가', '코스맥스 특허'],
+    },
+    {
+      month: 2,
+      from: new Date('2026-02-01T00:00:00+09:00'),
+      to:   new Date('2026-03-01T00:00:00+09:00'),
+      queries: ['코스맥스', 'Cosmax', '코스맥스 ODM', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 연구', '코스맥스 케미노바',
+                '코스맥스 유럽', '코스맥스 인수', '코스맥스바이오',
+                '코스맥스 주가', '코스맥스 인도네시아'],
+    },
+    {
+      month: 3,
+      from: new Date('2026-03-01T00:00:00+09:00'),
+      to:   new Date('2026-04-01T00:00:00+09:00'),
+      queries: ['코스맥스', 'Cosmax', '코스맥스 ODM', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 연구', '코스맥스 코스메틱',
+                '코스맥스 박람회', '코스맥스 배당', '코스맥스바이오',
+                '코스맥스 주가', '코스맥스 채용'],
+    },
+    {
+      month: 4,
+      from: new Date('2026-04-01T00:00:00+09:00'),
+      to:   new Date('2026-05-01T00:00:00+09:00'),
+      queries: ['코스맥스', 'Cosmax', '코스맥스 ODM', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 연구', '코스맥스 플러셔블',
+                '코스맥스 이온헬스', '코스맥스 상하이', '코스맥스바이오',
+                '코스맥스 주가', '코스맥스 1분기'],
+    },
+    {
+      month: 5,
+      from: new Date('2026-05-01T00:00:00+09:00'),
+      to:   new Date('2026-05-04T00:00:00+09:00'), // 최초 수집일 직전
+      queries: ['코스맥스', 'Cosmax', '코스맥스 ODM', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 뉴욕', '코스맥스 발명',
+                '코스맥스바이오', '코스맥스 주가'],
+    },
   ];
 
+  const CONFIGS = onlyMonth
+    ? MONTH_CONFIGS.filter(c => c.month === onlyMonth)
+    : MONTH_CONFIGS;
+
   const delay = ms => new Promise(r => setTimeout(r, ms));
-  const seen  = new Set(); // 중복 링크 방지
+  const seen  = new Set(); // 중복 링크 방지 (전체 세션)
   const collected = [];
   const log_lines = [];
   const lg = msg => { log_lines.push(msg); console.log('[backfill]', msg); };
 
-  lg(`소급 수집 시작 | 기간: 2026-01-01 ~ 2026-05-02 | dryRun: ${dryRun}`);
+  lg(`소급 수집 v2 시작 | dryRun: ${dryRun} | 대상 월: ${onlyMonth || '1~5월 전체'}`);
 
-  for (const query of QUERIES) {
-    lg(`▶ 쿼리: "${query}"`);
-    let queryHit = 0;
-    let querySkip = 0; // 기간 외
+  // 월별로 순차 수집
+  for (const cfg of CONFIGS) {
+    lg(`
+━━ ${cfg.month}월 수집 시작 (${cfg.from.toISOString().slice(0,10)} ~ ${cfg.to.toISOString().slice(0,10)}) ━━`);
+    let monthTotal = 0;
 
-    for (let start = 1; start <= 1000; start += 100) {
-      try {
-        const res2 = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-          params: { query, display: 100, start, sort: 'date' },
-          headers: {
-            'X-Naver-Client-Id':     process.env.NAVER_CLIENT_ID,
-            'X-Naver-Client-Secret': process.env.NAVER_CLIENT_SECRET,
-          },
-          timeout: 15000,
-        });
+    for (const query of cfg.queries) {
+      lg(`  ▶ 쿼리: "${query}"`);
+      let queryHit  = 0;
+      let consecSkip = 0; // 연속으로 기간 내 기사 없는 배치 수
 
-        const items = res2.data.items || [];
-        if (items.length === 0) break; // 더 이상 결과 없음
+      for (let start = 1; start <= 1000; start += 100) {
+        try {
+          const res2 = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+            params: { query, display: 100, start, sort: 'date' },
+            headers: {
+              'X-Naver-Client-Id':     process.env.NAVER_CLIENT_ID,
+              'X-Naver-Client-Secret': process.env.NAVER_CLIENT_SECRET,
+            },
+            timeout: 15000,
+          });
 
-        let batchInRange = 0;
-        let tooOld = 0;
+          const items = res2.data.items || [];
+          if (items.length === 0) break;
 
-        for (const item of items) {
-          const pubDate = new Date(item.pubDate);
-          const link    = item.originallink || item.link;
+          let batchInRange = 0;
+          let tooNew = 0;
+          let tooOld = 0;
 
-          if (pubDate < BACKFILL_FROM) { tooOld++; continue; }
-          if (pubDate >= BACKFILL_TO)  { querySkip++; continue; } // 이미 DB에 있는 기간
-          if (seen.has(link))           continue;
+          for (const item of items) {
+            const pubDate = new Date(item.pubDate);
+            const link    = item.originallink || item.link;
 
-          seen.add(link);
-          batchInRange++;
-          queryHit++;
+            if (pubDate >= cfg.to)   { tooNew++; continue; } // 이 월보다 최신
+            if (pubDate < cfg.from)  { tooOld++; continue; } // 이 월보다 오래됨
+            if (seen.has(link))      continue;
 
-          const article = {
-            title:       stripHtml(item.title),
-            link,
-            naverLink:   item.link,
-            description: stripHtml(item.description),
-            publisher:   extractPublisher(link),
-            pubDate,
-            isPR:        false,
-          };
+            seen.add(link);
+            batchInRange++;
+            queryHit++;
+            monthTotal++;
 
-          collected.push(article);
+            const article = {
+              title:       stripHtml(item.title),
+              link,
+              naverLink:   item.link,
+              description: stripHtml(item.description),
+              publisher:   extractPublisher(link),
+              pubDate,
+            };
+            collected.push(article);
 
-          if (!dryRun) {
-            await supabase.from('news_articles').upsert(
-              {
-                title:       article.title,
-                link:        article.link,
-                naver_link:  article.naverLink,
-                description: article.description,
-                publisher:   article.publisher,
-                pub_date:    article.pubDate.toISOString(),
-                is_new:      false,
-                is_pr:       false,
-              },
-              { onConflict: 'link', ignoreDuplicates: true }
-            );
+            if (!dryRun) {
+              await supabase.from('news_articles').upsert(
+                {
+                  title:       article.title,
+                  link:        article.link,
+                  naver_link:  article.naverLink,
+                  description: article.description,
+                  publisher:   article.publisher,
+                  pub_date:    article.pubDate.toISOString(),
+                  is_new:      false,
+                  is_pr:       false,
+                },
+                { onConflict: 'link', ignoreDuplicates: true }
+              );
+            }
           }
-        }
 
-        lg(`  start=${start} | 수집범위내: ${batchInRange}건 | 기간외(최신): ${querySkip} | 너무오래됨: ${tooOld}`);
+          lg(`    start=${start} | 범위내: ${batchInRange} | 최신: ${tooNew} | 오래됨: ${tooOld}`);
 
-        // 배치에서 기간 내 기사가 0개이고 너무 오래된 것만 있으면 더 파고들 필요 없음
-        if (tooOld > 0 && batchInRange === 0) {
-          lg(`  → 이 쿼리 더 이상 과거 데이터 없음, 다음 쿼리로`);
+          // 종료 조건
+          if (tooOld > 50) { lg('    → 과거 기사 다수 → 종료'); break; }
+          if (batchInRange === 0 && tooNew === 0) { consecSkip++; } else { consecSkip = 0; }
+          if (consecSkip >= 3) { lg('    → 3배치 연속 0건 → 종료'); break; }
+
+          await delay(250);
+
+        } catch (err) {
+          const s = err.response?.status;
+          lg(`    ❌ 오류 start=${start}: ${s || err.message}`);
+          if (s === 429) { await delay(3000); }
           break;
-        }
+        } // end try-catch
+      } // end start loop
 
-        await delay(300); // API 호출 간격 (429 방지)
+      lg(`    → "${query}" 소계: ${queryHit}건`);
+      await delay(400); // 쿼리 간 간격
+    } // end query loop
 
-      } catch (err) {
-        const s = err.response?.status;
-        lg(`  ❌ API 오류 start=${start}: ${s || err.message}`);
-        if (s === 429) {
-          lg('  ⏳ 429 Too Many Requests — 2초 대기 후 재시도');
-          await delay(2000);
-        }
-        break;
-      }
-    }
-    lg(`  → "${query}" 소계: ${queryHit}건`);
-    await delay(500); // 쿼리 간 간격
-  }
+    lg(`  ✓ ${cfg.month}월 완료: ${monthTotal}건`);
+    await delay(500); // 월 간 간격
+  } // end month loop
 
   // 월별 집계
   const byMonth = {};
@@ -1481,8 +1530,7 @@ app.get('/api/backfill', async (req, res) => {
     byMonth[key] = (byMonth[key] || 0) + 1;
   });
 
-  lg(`
-✅ 완료 | 총 수집: ${collected.length}건 (중복 제거) | dryRun: ${dryRun}`);
+  lg(`\n✅ 완료 | 총 수집: ${collected.length}건 (중복 제거) | dryRun: ${dryRun}`);
   lg('월별 분포: ' + JSON.stringify(byMonth));
 
   res.json({
