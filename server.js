@@ -1336,39 +1336,22 @@ app.get('/api/dashboard/timeline', async (req, res) => {
   const to   = dateTo   || new Date().toISOString().slice(0,10);
 
   try {
-    // Supabase에서 해당 기간 전체 조회
-    let query = supabase
-      .from('news_articles')
-      .select('pub_date, is_pr')
-      .gte('pub_date', from + 'T00:00:00')
-      .lte('pub_date', to   + 'T23:59:59')
-      .order('pub_date', { ascending: true })
-      .limit(10000); // 기본 1000건 limit 제거
-
-    const { data, error } = await query;
+    // Supabase RPC 집계 함수 사용 (row limit 우회)
+    const { data, error } = await supabase.rpc('get_timeline', {
+      p_from:   from + 'T00:00:00+00:00',
+      p_to:     to   + 'T23:59:59+00:00',
+      p_period: period,
+    });
     if (error) throw error;
 
-    const buckets = {};
-    (data || []).forEach(row => {
-      const d = new Date(row.pub_date);
-      let key;
-      if (period === 'monthly') {
-        key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-      } else if (period === 'weekly') {
-        const mon = new Date(d);
-        mon.setDate(d.getDate() - ((d.getDay()+6)%7));
-        key = mon.toISOString().slice(0,10);
-      } else {
-        key = d.toISOString().slice(0,10);
-      }
-      if (!buckets[key]) buckets[key] = { period: key, total: 0, pr: 0 };
-      buckets[key].total++;
-      if (row.is_pr) buckets[key].pr++;
-    });
-
-    res.json(Object.values(buckets).sort((a,b) => a.period.localeCompare(b.period)));
+    res.json((data || []).map(r => ({
+      period: r.period,
+      total:  Number(r.total),
+      pr:     Number(r.pr),
+    })));
   } catch (e) {
-    // Supabase 오류 시 메모리 폴백
+    log('timeline RPC 오류: ' + e.message);
+    // 폴백: 메모리
     const all = Array.from(articlesMap.values());
     const fromD = new Date(from); fromD.setHours(0,0,0,0);
     const toD   = new Date(to);   toD.setHours(23,59,59,999);
@@ -1393,21 +1376,20 @@ app.get('/api/dashboard/publishers', async (req, res) => {
   const to   = dateTo   || new Date().toISOString().slice(0,10);
 
   try {
-    const { data, error } = await supabase
-      .from('news_articles')
-      .select('publisher, link, is_pr')
-      .gte('pub_date', from + 'T00:00:00')
-      .lte('pub_date', to   + 'T23:59:59')
-      .limit(10000);
+    // Supabase RPC 집계 함수 사용 (row limit 우회)
+    const { data, error } = await supabase.rpc('get_publishers', {
+      p_from: from + 'T00:00:00+00:00',
+      p_to:   to   + 'T23:59:59+00:00',
+    });
     if (error) throw error;
 
     const pubMap = {};
     (data || []).forEach(row => {
-      const name = normalizePublisher(row.publisher, row.link);
+      const name = normalizePublisher(row.publisher, null);
       const type = getPublisherType(name);
       if (!pubMap[name]) pubMap[name] = { name, type, count:0, prCount:0 };
-      pubMap[name].count++;
-      if (row.is_pr) pubMap[name].prCount++;
+      pubMap[name].count     += Number(row.cnt);
+      pubMap[name].prCount   += Number(row.pr_cnt);
     });
 
     const typeMap = {};
