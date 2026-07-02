@@ -1444,42 +1444,52 @@ app.get('/api/backfill', async (req, res) => {
   const dryRun     = req.query.dryRun === 'true';
   const onlyMonth  = req.query.month ? parseInt(req.query.month) : null; // 특정 월만
 
-  // 월별 수집 설정 — 단일 키워드 + start 최대 5000까지 시도
+  // 월별 수집 설정 — 다중 키워드로 각 월 집중 수집
   const MONTH_CONFIGS = [
     {
       month: 1,
       from: new Date('2026-01-01T00:00:00+09:00'),
       to:   new Date('2026-02-01T00:00:00+09:00'),
-      queries: ['코스맥스'],
-      maxStart: 5000,
+      queries: ['코스맥스', 'Cosmax', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 신년',
+                '코스맥스 CES', '코스맥스 1분기', '코스맥스바이오',
+                '코스맥스 주가', '코스맥스 특허'],
     },
     {
       month: 2,
       from: new Date('2026-02-01T00:00:00+09:00'),
       to:   new Date('2026-03-01T00:00:00+09:00'),
-      queries: ['코스맥스'],
-      maxStart: 5000,
+      queries: ['코스맥스', 'Cosmax', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 케미노바',
+                '코스맥스 유럽', '코스맥스 인수', '코스맥스바이오',
+                '코스맥스 주가', '코스맥스 인도네시아'],
     },
     {
       month: 3,
       from: new Date('2026-03-01T00:00:00+09:00'),
       to:   new Date('2026-04-01T00:00:00+09:00'),
-      queries: ['코스맥스'],
-      maxStart: 5000,
+      queries: ['코스맥스', 'Cosmax', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 코스메틱',
+                '코스맥스 박람회', '코스맥스 배당', '코스맥스바이오',
+                '코스맥스 주가', '코스맥스 채용'],
     },
     {
       month: 4,
       from: new Date('2026-04-01T00:00:00+09:00'),
       to:   new Date('2026-05-01T00:00:00+09:00'),
-      queries: ['코스맥스'],
-      maxStart: 5000,
+      queries: ['코스맥스', 'Cosmax', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 플러셔블',
+                '코스맥스 상하이', '코스맥스바이오',
+                '코스맥스 주가', '코스맥스 1분기'],
     },
     {
       month: 5,
       from: new Date('2026-05-01T00:00:00+09:00'),
       to:   new Date('2026-06-01T00:00:00+09:00'),
-      queries: ['코스맥스'],
-      maxStart: 5000,
+      queries: ['코스맥스', 'Cosmax', '코스맥스 화장품',
+                '코스맥스 실적', '코스맥스 뉴욕', '코스맥스 발명',
+                '코스맥스바이오', '코스맥스 주가', '코스맥스 PPA',
+                '코스맥스 박람회', '코스맥스 이노베이션'],
     },
   ];
 
@@ -1506,7 +1516,7 @@ app.get('/api/backfill', async (req, res) => {
       let queryHit  = 0;
       let consecSkip = 0; // 연속으로 기간 내 기사 없는 배치 수
 
-      for (let start = 1; start <= (cfg.maxStart || 1000); start += 100) {
+      for (let start = 1; start <= 1000; start += 100) {
         try {
           const res2 = await axios.get('https://openapi.naver.com/v1/search/news.json', {
             params: { query, display: 100, start, sort: 'date' },
@@ -1606,6 +1616,63 @@ app.get('/api/backfill', async (req, res) => {
     byMonth,
     logs:      log_lines,
   });
+});
+
+
+// ─── GET /api/probe — 특정 월 기사가 몇 번째에 있는지 탐색 ──────────────────
+// query: month=1~12, maxStart=10000 (기본)
+app.get('/api/probe', async (req, res) => {
+  if (DEMO_MODE) return res.status(503).json({ error: '데모 모드' });
+
+  const targetMonth = parseInt(req.query.month || '1');
+  const maxStart    = parseInt(req.query.maxStart || '5000');
+  const targetYear  = 2026;
+
+  const from = new Date(`${targetYear}-${String(targetMonth).padStart(2,'0')}-01T00:00:00+09:00`);
+  const to   = new Date(targetMonth === 12
+    ? `${targetYear+1}-01-01T00:00:00+09:00`
+    : `${targetYear}-${String(targetMonth+1).padStart(2,'0')}-01T00:00:00+09:00`);
+
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+  const logs  = [];
+  let found   = 0;
+
+  for (let start = 1; start <= maxStart; start += 100) {
+    try {
+      const r = await axios.get('https://openapi.naver.com/v1/search/news.json', {
+        params: { query: '코스맥스', display: 100, start, sort: 'date' },
+        headers: {
+          'X-Naver-Client-Id':     process.env.NAVER_CLIENT_ID,
+          'X-Naver-Client-Secret': process.env.NAVER_CLIENT_SECRET,
+        },
+        timeout: 15000,
+      });
+
+      const items = r.data.items || [];
+      if (items.length === 0) { logs.push(`start=${start} → 결과 없음, 종료`); break; }
+
+      let inRange = 0, tooNew = 0, tooOld = 0;
+      for (const item of items) {
+        const d = new Date(item.pubDate);
+        if (d >= to)   tooNew++;
+        else if (d < from) tooOld++;
+        else { inRange++; found++; }
+      }
+
+      logs.push(`start=${start} | ${targetMonth}월: ${inRange} | 최신: ${tooNew} | 오래됨: ${tooOld}`);
+
+      if (tooOld > 50) { logs.push('→ 과거 기사 다수, 종료'); break; }
+      await delay(200);
+
+    } catch (e) {
+      const s = e.response?.status;
+      logs.push(`start=${start} → 오류: ${s || e.message}`);
+      if (s === 429) await delay(3000);
+      break;
+    }
+  }
+
+  res.json({ month: targetMonth, found, logs });
 });
 
 // ─── GET /ping ────────────────────────────────────────────────────────────────
