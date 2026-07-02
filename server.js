@@ -1473,7 +1473,7 @@ app.get('/api/backfill', async (req, res) => {
     {
       month: 5,
       from: new Date('2026-05-01T00:00:00+09:00'),
-      to:   new Date('2026-06-01T00:00:00+09:00'), // 5월 말일까지
+      to:   new Date('2026-06-01T00:00:00+09:00'),
       queries: ['코스맥스'],
     },
   ];
