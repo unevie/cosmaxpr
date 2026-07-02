@@ -1444,37 +1444,42 @@ app.get('/api/backfill', async (req, res) => {
   const dryRun     = req.query.dryRun === 'true';
   const onlyMonth  = req.query.month ? parseInt(req.query.month) : null; // 특정 월만
 
-  // 월별 수집 설정 — 각 월마다 from/to + 특화 쿼리
+  // 월별 수집 설정 — 단일 키워드 + start 최대 5000까지 시도
   const MONTH_CONFIGS = [
     {
       month: 1,
       from: new Date('2026-01-01T00:00:00+09:00'),
       to:   new Date('2026-02-01T00:00:00+09:00'),
       queries: ['코스맥스'],
+      maxStart: 5000,
     },
     {
       month: 2,
       from: new Date('2026-02-01T00:00:00+09:00'),
       to:   new Date('2026-03-01T00:00:00+09:00'),
       queries: ['코스맥스'],
+      maxStart: 5000,
     },
     {
       month: 3,
       from: new Date('2026-03-01T00:00:00+09:00'),
       to:   new Date('2026-04-01T00:00:00+09:00'),
       queries: ['코스맥스'],
+      maxStart: 5000,
     },
     {
       month: 4,
       from: new Date('2026-04-01T00:00:00+09:00'),
       to:   new Date('2026-05-01T00:00:00+09:00'),
       queries: ['코스맥스'],
+      maxStart: 5000,
     },
     {
       month: 5,
       from: new Date('2026-05-01T00:00:00+09:00'),
       to:   new Date('2026-06-01T00:00:00+09:00'),
       queries: ['코스맥스'],
+      maxStart: 5000,
     },
   ];
 
@@ -1501,7 +1506,7 @@ app.get('/api/backfill', async (req, res) => {
       let queryHit  = 0;
       let consecSkip = 0; // 연속으로 기간 내 기사 없는 배치 수
 
-      for (let start = 1; start <= 1000; start += 100) {
+      for (let start = 1; start <= (cfg.maxStart || 1000); start += 100) {
         try {
           const res2 = await axios.get('https://openapi.naver.com/v1/search/news.json', {
             params: { query, display: 100, start, sort: 'date' },
