@@ -1397,7 +1397,8 @@ app.get('/api/dashboard/publishers', async (req, res) => {
       .from('news_articles')
       .select('publisher, link, is_pr')
       .gte('pub_date', from + 'T00:00:00')
-      .lte('pub_date', to   + 'T23:59:59');
+      .lte('pub_date', to   + 'T23:59:59')
+      .limit(10000);
     if (error) throw error;
 
     const pubMap = {};
