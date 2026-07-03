@@ -1619,6 +1619,135 @@ app.get('/api/backfill', async (req, res) => {
 });
 
 
+
+// ─── GET /api/backfill-web — 네이버 뉴스 웹 검색 날짜필터 크롤링 ──────────────
+// 공식 API의 1000건 한계를 우회. 월별 날짜 필터로 각 월 기사 수집.
+// query: dryRun=true, month=1~5 (미지정시 1~5 전체)
+app.get('/api/backfill-web', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Supabase 미연결' });
+
+  const dryRun    = req.query.dryRun === 'true';
+  const onlyMonth = req.query.month ? parseInt(req.query.month) : null;
+
+  // 월별 날짜 범위 (2026년)
+  const MONTHS = [
+    { m:1, ds:'2026.01.01', de:'2026.01.31', from:'20260101', to:'20260131' },
+    { m:2, ds:'2026.02.01', de:'2026.02.28', from:'20260201', to:'20260228' },
+    { m:3, ds:'2026.03.01', de:'2026.03.31', from:'20260301', to:'20260331' },
+    { m:4, ds:'2026.04.01', de:'2026.04.30', from:'20260401', to:'20260430' },
+    { m:5, ds:'2026.05.01', de:'2026.05.31', from:'20260501', to:'20260531' },
+  ];
+  const targets = onlyMonth ? MONTHS.filter(x => x.m === onlyMonth) : MONTHS;
+
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+  const seen  = new Set();
+  const collected = [];
+  const logs = [];
+  const lg = msg => { logs.push(msg); console.log('[backfill-web]', msg); };
+
+  lg(`웹 크롤링 소급 수집 시작 | dryRun: ${dryRun} | 대상: ${onlyMonth || '1~5월'}`);
+
+  for (const t of targets) {
+    lg(`\n━━ ${t.m}월 (${t.ds} ~ ${t.de}) ━━`);
+    let monthTotal = 0;
+    let emptyStreak = 0;
+
+    // 네이버 웹 검색은 start를 1,11,21... 형태로 페이징 (페이지당 10개)
+    for (let start = 1; start <= 4000; start += 10) {
+      const url = `https://search.naver.com/search.naver?where=news&sm=tab_pge`
+        + `&query=${encodeURIComponent('코스맥스')}`
+        + `&sort=1&photo=0&field=0&pd=3&ds=${t.ds}&de=${t.de}`
+        + `&mynews=0&office_type=0&office_section_code=0&news_office_checked=`
+        + `&nso=so:dd,p:from${t.from}to${t.to},a:all&start=${start}`;
+
+      try {
+        const r = await axios.get(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+            'Accept-Language': 'ko-KR,ko;q=0.9',
+          },
+          timeout: 15000,
+        });
+
+        const html = r.data;
+        // 원본 기사 링크 추출 — 네이버 뉴스 결과의 언론사 원본 링크
+        // 패턴: "originalUrl":"..." 또는 news_tit href
+        const links = new Set();
+
+        // a.news_tit href 추출
+        const titRegex = /<a[^>]+class="news_tit"[^>]+href="([^"]+)"[^>]*title="([^"]*)"/g;
+        let match;
+        while ((match = titRegex.exec(html)) !== null) {
+          links.add(JSON.stringify({ link: match[1], title: match[2] }));
+        }
+
+        if (links.size === 0) {
+          emptyStreak++;
+          lg(`  start=${start} | 결과 없음 (streak=${emptyStreak})`);
+          if (emptyStreak >= 2) { lg('  → 결과 종료'); break; }
+          await delay(400);
+          continue;
+        }
+        emptyStreak = 0;
+
+        let batchNew = 0;
+        for (const l of links) {
+          const { link, title } = JSON.parse(l);
+          if (seen.has(link)) continue;
+          seen.add(link);
+          batchNew++;
+          monthTotal++;
+
+          const pubDate = new Date(`2026-${String(t.m).padStart(2,'0')}-15T00:00:00+09:00`); // 월 중간값 (정확한 날짜는 상세크롤 필요)
+
+          const article = {
+            title:       stripHtml(title),
+            link,
+            naverLink:   link,
+            description: '',
+            publisher:   extractPublisher(link),
+            pubDate,
+          };
+          collected.push(article);
+
+          if (!dryRun) {
+            await supabase.from('news_articles').upsert({
+              title:       article.title,
+              link:        article.link,
+              naver_link:  article.naverLink,
+              description: article.description,
+              publisher:   article.publisher,
+              pub_date:    article.pubDate.toISOString(),
+              is_new:      false,
+              is_pr:       false,
+            }, { onConflict: 'link', ignoreDuplicates: true });
+          }
+        }
+
+        lg(`  start=${start} | 신규: ${batchNew} | 누적: ${monthTotal}`);
+        await delay(500); // 크롤링 차단 방지
+
+      } catch (err) {
+        const s = err.response?.status;
+        lg(`  start=${start} → 오류: ${s || err.message}`);
+        if (s === 429 || s === 403) { lg('  ⏳ 차단 감지, 5초 대기'); await delay(5000); }
+        else break;
+      }
+    }
+    lg(`  ✓ ${t.m}월 완료: ${monthTotal}건`);
+    await delay(1000);
+  }
+
+  const byMonth = {};
+  collected.forEach(a => {
+    const key = `${a.pubDate.getFullYear()}-${String(a.pubDate.getMonth()+1).padStart(2,'0')}`;
+    byMonth[key] = (byMonth[key] || 0) + 1;
+  });
+
+  lg(`\n✅ 완료 | 총 ${collected.length}건 | dryRun: ${dryRun}`);
+  res.json({ success:true, dryRun, total:collected.length, byMonth, logs });
+});
+
 // ─── GET /api/probe — 특정 월 기사가 몇 번째에 있는지 탐색 ──────────────────
 // query: month=1~12, maxStart=10000 (기본)
 app.get('/api/probe', async (req, res) => {
