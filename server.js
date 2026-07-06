@@ -1808,6 +1808,33 @@ app.get('/api/backfill-web', async (req, res) => {
   res.json({ success:true, dryRun, total:collected.length, byMonth, logs });
 });
 
+
+// ─── GET /api/debug/unmapped — 기타로 분류되는 언론사 목록 ──────────────────
+app.get('/api/debug/unmapped', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Supabase 미연결' });
+  try {
+    const { data, error } = await supabase.rpc('get_publishers', {
+      p_from: '2026-01-01T00:00:00+00:00',
+      p_to:   '2026-05-31T23:59:59+00:00',
+    });
+    if (error) throw error;
+
+    const etc = [];
+    (data || []).forEach(row => {
+      const name = normalizePublisher(row.publisher, null);
+      const type = getPublisherType(name);
+      if (type === '기타' && name !== '미상') {
+        etc.push({ name, count: Number(row.cnt) });
+      }
+    });
+    etc.sort((a,b) => b.count - a.count);
+    const total = etc.reduce((s,e) => s+e.count, 0);
+    res.json({ unmappedTotal: total, count: etc.length, publishers: etc });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── GET /api/probe — 특정 월 기사가 몇 번째에 있는지 탐색 ──────────────────
 // query: month=1~12, maxStart=10000 (기본)
 app.get('/api/probe', async (req, res) => {
