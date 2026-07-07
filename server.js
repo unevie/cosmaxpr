@@ -588,6 +588,8 @@ function extractPublisher(url) {
 
 // 언론사명 → 유형 직접 매핑 (네이버 뉴스 CP사 분류 기준)
 const PUBLISHER_NAME_TYPE = {
+  // ── 5~7월 신규 영문명 ──
+  'POLINEWS':'인터넷신문','NEWSMAP':'인터넷신문','KOREAREPORT':'인터넷신문','WEEKLYTODAY':'인터넷신문','POINTE':'인터넷신문','OKFASHION':'매거진/전문지',
   // ── 종합일간지 ──
   'KUKINEWS':'종합일간지','MUNHWA':'종합일간지','SEOUL':'종합일간지','HANKOOKILBO':'종합일간지',
   'NAEIL':'종합일간지','KMIB':'종합일간지','조선일보':'종합일간지','중앙일보':'종합일간지',
