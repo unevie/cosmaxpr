@@ -1466,31 +1466,45 @@ app.get('/api/dashboard/timeline', async (req, res) => {
   const from = dateFrom || new Date(Date.now() - 30 * 86400000).toISOString().slice(0,10);
   const to   = dateTo   || new Date().toISOString().slice(0,10);
 
-  // 언론사 필터가 있으면 언론사별 집계 RPC 조회 후 정규화·필터·재집계
+  // 언론사 필터: 선택된 한글명에 해당하는 원본 publisher 값들을 찾아 DB에서 직접 집계
   if (publisher) {
     try {
-      const { data, error } = await supabase.rpc('get_timeline_by_raw_publisher', {
-        p_from:   from + 'T00:00:00+00:00',
-        p_to:     to   + 'T23:59:59+00:00',
-        p_period: period,
+      // 1) 해당 기간 원본 publisher 목록 조회 (집계본, 행수 적음)
+      const { data: pubRows, error: pubErr } = await supabase.rpc('get_publishers', {
+        p_from: from + 'T00:00:00+00:00',
+        p_to:   to   + 'T23:59:59+00:00',
+      });
+      if (pubErr) throw pubErr;
+
+      // 2) 정규화 결과가 선택 언론사와 일치하는 원본값 수집
+      const rawValues = [];
+      (pubRows || []).forEach(row => {
+        if (normalizePublisher(row.publisher, null) === publisher) {
+          rawValues.push(row.publisher);
+        }
+      });
+
+      if (rawValues.length === 0) {
+        return res.json([]); // 해당 언론사 데이터 없음
+      }
+
+      // 3) 원본값 배열로 timeline 집계 (DB에서 직접, limit 무관)
+      const { data, error } = await supabase.rpc('get_timeline_pub_in', {
+        p_from:       from + 'T00:00:00+00:00',
+        p_to:         to   + 'T23:59:59+00:00',
+        p_period:     period,
+        p_publishers: rawValues,
       });
       if (error) throw error;
 
-      // 원본 publisher를 정규화하여 선택 언론사와 일치하는 것만 기간별 합산
-      const buckets = {};
-      (data || []).forEach(row => {
-        const name = normalizePublisher(row.publisher, null);
-        if (name !== publisher) return;
-        const key = row.period;
-        if (!buckets[key]) buckets[key] = { period:key, total:0, pr:0 };
-        buckets[key].total += Number(row.total);
-        buckets[key].pr    += Number(row.pr);
-      });
-
-      return res.json(Object.values(buckets).sort((a,b) => a.period.localeCompare(b.period)));
+      return res.json((data || []).map(r => ({
+        period: r.period,
+        total:  Number(r.total),
+        pr:     Number(r.pr),
+      })));
     } catch (e) {
       log('timeline(publisher) 오류: ' + e.message);
-      // 폴백은 아래 일반 로직으로
+      // 폴백: 아래 일반 로직
     }
   }
 
