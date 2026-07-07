@@ -43,6 +43,14 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 // type 값 (네이버 뉴스스탠드 CP사 분류 기준):
 //   '종합일간지' | '방송/통신' | '경제/IT' | '인터넷신문' | '스포츠/연예' | '지역지' | '매거진/전문지'
 const PUBLISHER_DOMAINS = {
+'tf.co.kr':               { name:'더팩트',       type:'인터넷신문' },
+  'dealsitetv.com':         { name:'딜사이트',     type:'경제/IT' },
+  'mtn.co.kr':              { name:'머니투데이방송',type:'방송/통신' },
+  'einfomax.co.kr':         { name:'연합인포맥스',  type:'경제/IT' },
+  'ifm.kr':                 { name:'아이에프엠',    type:'인터넷신문' },
+  'bbsi.co.kr':             { name:'BBS',          type:'방송/통신' },
+  'unn.net':                { name:'한국대학신문',  type:'매거진/전문지' },
+  'cpbc.co.kr':             { name:'가톨릭평화신문',type:'인터넷신문' },
   // ── 종합일간지 ────────────────────────────────────────────────────────────
   'chosun.com':             { name:'조선일보',     type:'종합일간지' },
   'joongang.co.kr':         { name:'중앙일보',     type:'종합일간지' },
@@ -576,11 +584,20 @@ function extractPublisher(url) {
         }
       }
     }
-    // 매핑 실패 시 '미상' 반환 (NEWS, SPORTS 같은 의미없는 값 방지)
-    const GENERIC = ['news', 'www', 'sports', 'media', 'press', 'tv', 'web'];
-    const first = parts[0];
-    if (GENERIC.includes(first)) return '미상';
-    return first.toUpperCase() || '미상';
+    // 매핑 실패 시: 도메인의 대표 이름(SLD)을 언론사 코드로 사용
+    // news.bizwatch.co.kr → bizwatch, www.chosun.com → chosun
+    const GENERIC_SUB = ['news', 'www', 'sports', 'media', 'press', 'tv', 'web',
+                         'view', 'article', 'm', 'mobile', 'biz', 'go', 'post', 'app'];
+    const CC_TLD = ['co', 'or', 'go', 'ne', 'pe', 'kr', 'com', 'net', 'org'];
+    // 앞에서부터 GENERIC 서브도메인을 건너뛰고, 실제 언론사 식별자 찾기
+    let idx = 0;
+    while (idx < parts.length - 2 && GENERIC_SUB.includes(parts[idx])) idx++;
+    const candidate = parts[idx];
+    // 후보가 GENERIC이거나 TLD면 미상
+    if (!candidate || GENERIC_SUB.includes(candidate) || CC_TLD.includes(candidate)) {
+      return '미상';
+    }
+    return candidate.toUpperCase();
   } catch {
     return '미상';
   }
@@ -588,6 +605,8 @@ function extractPublisher(url) {
 
 // 언론사명 → 유형 직접 매핑 (네이버 뉴스 CP사 분류 기준)
 const PUBLISHER_NAME_TYPE = {
+  // ── 미상복구 언론사 ──
+  '머니투데이방송':'방송/통신','연합인포맥스':'경제/IT','아이에프엠':'인터넷신문','한국대학신문':'매거진/전문지','가톨릭평화신문':'인터넷신문','스포츠한국':'스포츠/연예','BBS':'방송/통신',
   // ── 한글 표시명 유형 ──
   '일코노미뉴스':'경제/IT','공공뉴스':'인터넷신문',
   // ── 숫자 시작 영문명 ──
