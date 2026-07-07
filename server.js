@@ -588,6 +588,8 @@ function extractPublisher(url) {
 
 // 언론사명 → 유형 직접 매핑 (네이버 뉴스 CP사 분류 기준)
 const PUBLISHER_NAME_TYPE = {
+  // ── debug 잔여 미매핑 ──
+  'WSOBI':'인터넷신문','CSTIMES':'인터넷신문','OONEWS':'인터넷신문','ZIKSIR':'인터넷신문','WKOREA':'매거진/전문지','GUKJENEWS':'인터넷신문','THEOPINIONTIMES':'인터넷신문','ATSTAR1':'인터넷신문','DYNEWS':'인터넷신문','KGNEWS':'지역지',
   // ── 5~7월 신규 영문명 ──
   'POLINEWS':'인터넷신문','NEWSMAP':'인터넷신문','KOREAREPORT':'인터넷신문','WEEKLYTODAY':'인터넷신문','POINTE':'인터넷신문','OKFASHION':'매거진/전문지',
   // ── 종합일간지 ──
