@@ -1466,35 +1466,25 @@ app.get('/api/dashboard/timeline', async (req, res) => {
   const from = dateFrom || new Date(Date.now() - 30 * 86400000).toISOString().slice(0,10);
   const to   = dateTo   || new Date().toISOString().slice(0,10);
 
-  // 언론사 필터가 있으면 원본 조회 후 서버에서 정규화·필터·집계
+  // 언론사 필터가 있으면 언론사별 집계 RPC 조회 후 정규화·필터·재집계
   if (publisher) {
     try {
-      const { data, error } = await supabase.rpc('get_articles_raw', {
-        p_from: from + 'T00:00:00+00:00',
-        p_to:   to   + 'T23:59:59+00:00',
+      const { data, error } = await supabase.rpc('get_timeline_by_raw_publisher', {
+        p_from:   from + 'T00:00:00+00:00',
+        p_to:     to   + 'T23:59:59+00:00',
+        p_period: period,
       });
       if (error) throw error;
 
-      const bucketKey = (d) => {
-        if (period === 'monthly') return d.toISOString().slice(0,7);       // YYYY-MM
-        if (period === 'weekly') {
-          const dt = new Date(d);
-          const day = (dt.getUTCDay() + 6) % 7; // 월요일 시작
-          dt.setUTCDate(dt.getUTCDate() - day);
-          return dt.toISOString().slice(0,10);
-        }
-        return d.toISOString().slice(0,10);                                // YYYY-MM-DD
-      };
-
+      // 원본 publisher를 정규화하여 선택 언론사와 일치하는 것만 기간별 합산
       const buckets = {};
       (data || []).forEach(row => {
         const name = normalizePublisher(row.publisher, null);
         if (name !== publisher) return;
-        const d = new Date(row.pub_date);
-        const key = bucketKey(d);
+        const key = row.period;
         if (!buckets[key]) buckets[key] = { period:key, total:0, pr:0 };
-        buckets[key].total++;
-        if (row.is_pr) buckets[key].pr++;
+        buckets[key].total += Number(row.total);
+        buckets[key].pr    += Number(row.pr);
       });
 
       return res.json(Object.values(buckets).sort((a,b) => a.period.localeCompare(b.period)));
