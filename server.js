@@ -588,6 +588,10 @@ function extractPublisher(url) {
 
 // 언론사명 → 유형 직접 매핑 (네이버 뉴스 CP사 분류 기준)
 const PUBLISHER_NAME_TYPE = {
+  // ── 한글 표시명 유형 ──
+  '일코노미뉴스':'경제/IT','공공뉴스':'인터넷신문',
+  // ── 숫자 시작 영문명 ──
+  '1CONOMYNEWS':'경제/IT','00NEWS':'인터넷신문',
   // ── debug 잔여 미매핑 ──
   'WSOBI':'인터넷신문','CSTIMES':'인터넷신문','OONEWS':'인터넷신문','ZIKSIR':'인터넷신문','WKOREA':'매거진/전문지','GUKJENEWS':'인터넷신문','THEOPINIONTIMES':'인터넷신문','ATSTAR1':'인터넷신문','DYNEWS':'인터넷신문','KGNEWS':'지역지',
   // ── 5~7월 신규 영문명 ──
@@ -1456,10 +1460,18 @@ app.get('/api/pr-articles', (req, res) => {
 
 // 언론사명 정규화 (DB에 잘못 저장된 값 보정)
 const GENERIC_PUBLISHERS = new Set(['NEWS','SPORTS','MEDIA','PRESS','TV','WEB','BLOG','MOBILE','M','N']);
+// 영문 도메인명 → 한글 표시명 (화면 표시용, DB 값은 유지)
+const PUBLISHER_DISPLAY_NAME = {
+  '1CONOMYNEWS': '일코노미뉴스',
+  '00NEWS': '공공뉴스',
+};
+
 function normalizePublisher(name, link) {
   if (!name || GENERIC_PUBLISHERS.has(name.toUpperCase())) {
     return link ? extractPublisher(link) : '미상';
   }
+  // 영문 표시명 → 한글 변환
+  if (PUBLISHER_DISPLAY_NAME[name]) return PUBLISHER_DISPLAY_NAME[name];
   return name;
 }
 
