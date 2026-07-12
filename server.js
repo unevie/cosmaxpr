@@ -78,6 +78,7 @@ const PUBLISHER_DOMAINS = {
   'tvchosun.com':           { name:'TV조선',       type:'방송/통신' },
   // ── 경제/IT ──────────────────────────────────────────────────────────────
   'hankyung.com':           { name:'한국경제',     type:'경제/IT' },
+  'mkhealth.co.kr':         { name:'매경헬스',     type:'매거진/전문지' },
   'mk.co.kr':               { name:'매일경제',     type:'경제/IT' },
   'edaily.co.kr':           { name:'이데일리',     type:'경제/IT' },
   'mt.co.kr':               { name:'머니투데이',   type:'경제/IT' },
