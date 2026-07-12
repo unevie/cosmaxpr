@@ -1690,17 +1690,18 @@ app.get('/api/backfill', async (req, res) => {
   const company    = req.query.company === 'kolmar' ? 'kolmar' : 'cosmax';
 
   // 한국콜마 6월 재수집 설정 (공식 API → 정확한 pubDate)
+  // 한국콜마 재수집 설정 (공식 API → 정확한 pubDate + originallink로 조선비즈 등 누락 매체 복구)
+  const KOLMAR_QUERIES = ['한국콜마', 'Kolmar', '한국콜마 화장품', '한국콜마 실적',
+                          '한국콜마 신제품', '한국콜마 주가', '한국콜마 ODM', '콜마비앤에이치',
+                          '한국콜마 배당', '한국콜마 투자', '한국콜마 선케어', '한국콜마 윤동한',
+                          '한국콜마 실증', '한국콜마 바이오', '한국콜마 수출'];
   const KOLMAR_CONFIGS = [
-    {
-      month: 6,
-      from: new Date('2026-06-01T00:00:00+09:00'),
-      to:   new Date('2026-07-01T00:00:00+09:00'),
-      queries: ['한국콜마', 'Kolmar', '한국콜마 화장품',
-                '한국콜마 실적', '한국콜마 신제품',
-                '한국콜마 주가', '한국콜마 ODM', '콜마비앤에이치',
-                '한국콜마 배당', '한국콜마 투자', '한국콜마 선케어',
-                '한국콜마 윤동한', '한국콜마 실증'],
-    },
+    { month:1, from:new Date('2026-01-01T00:00:00+09:00'), to:new Date('2026-02-01T00:00:00+09:00'), queries:KOLMAR_QUERIES },
+    { month:2, from:new Date('2026-02-01T00:00:00+09:00'), to:new Date('2026-03-01T00:00:00+09:00'), queries:KOLMAR_QUERIES },
+    { month:3, from:new Date('2026-03-01T00:00:00+09:00'), to:new Date('2026-04-01T00:00:00+09:00'), queries:KOLMAR_QUERIES },
+    { month:4, from:new Date('2026-04-01T00:00:00+09:00'), to:new Date('2026-05-01T00:00:00+09:00'), queries:KOLMAR_QUERIES },
+    { month:5, from:new Date('2026-05-01T00:00:00+09:00'), to:new Date('2026-06-01T00:00:00+09:00'), queries:KOLMAR_QUERIES },
+    { month:6, from:new Date('2026-06-01T00:00:00+09:00'), to:new Date('2026-07-01T00:00:00+09:00'), queries:KOLMAR_QUERIES },
   ];
 
   // 월별 수집 설정 — 다중 키워드로 각 월 집중 수집
