@@ -606,6 +606,18 @@ function extractPublisher(url) {
 
 // 언론사명 → 유형 직접 매핑 (네이버 뉴스 CP사 분류 기준)
 const PUBLISHER_NAME_TYPE = {
+  // ── 한국콜마 보강: 영문코드→한글명 UPDATE 후 유형분류용 (기타 감소) ──
+  '채널A':'방송/통신','TV조선':'방송/통신','IT비즈뉴스':'경제/IT','조세일보':'경제/IT',
+  '미디어오늘':'인터넷신문','비즈워치':'인터넷신문','시사인':'인터넷신문','주간경향':'인터넷신문',
+  '이코노빌':'인터넷신문','리더스경제':'인터넷신문','T타임스':'인터넷신문','NBN뉴스':'인터넷신문',
+  'Industry뉴스':'인터넷신문','글로벌타임스':'인터넷신문','데일리임팩트':'인터넷신문','동화뉴스':'인터넷신문',
+  '문화뉴스':'인터넷신문','펜뉴스':'인터넷신문','아시아뉴스통신':'인터넷신문','KSP뉴스':'인터넷신문',
+  '임팩트온':'인터넷신문','제주뉴스':'지역지','코스인코리아':'매거진/전문지','뷰티메카':'매거진/전문지',
+  '뷰티한국':'매거진/전문지','뷰티타임스':'매거진/전문지','코스모뷰티':'매거진/전문지','안전저널':'매거진/전문지',
+  '한국물류신문':'매거진/전문지','비타뉴스':'매거진/전문지','소비자가만드는신문':'매거진/전문지','메디컬월드뉴스':'매거진/전문지',
+  '미래경제연구원':'매거진/전문지','코리아헤럴드':'종합일간지','파이낸셜리뷰':'경제/IT','팍스TV':'방송/통신',
+  '시사온':'인터넷신문','이투자':'경제/IT','코리아타임스':'종합일간지','인더스트리뉴스':'인터넷신문',
+  '브레이크뉴스':'인터넷신문','바이라인네트워크':'경제/IT','허핑턴포스트':'인터넷신문',
   // ── 미상복구 언론사 ──
   '머니투데이방송':'방송/통신','연합인포맥스':'경제/IT','아이에프엠':'인터넷신문','한국대학신문':'매거진/전문지','가톨릭평화신문':'인터넷신문','스포츠한국':'스포츠/연예','BBS':'방송/통신',
   // ── 한글 표시명 유형 ──
@@ -1675,6 +1687,21 @@ app.get('/api/backfill', async (req, res) => {
 
   const dryRun     = req.query.dryRun === 'true';
   const onlyMonth  = req.query.month ? parseInt(req.query.month) : null; // 특정 월만
+  const company    = req.query.company === 'kolmar' ? 'kolmar' : 'cosmax';
+
+  // 한국콜마 6월 재수집 설정 (공식 API → 정확한 pubDate)
+  const KOLMAR_CONFIGS = [
+    {
+      month: 6,
+      from: new Date('2026-06-01T00:00:00+09:00'),
+      to:   new Date('2026-07-01T00:00:00+09:00'),
+      queries: ['한국콜마', 'Kolmar', '한국콜마 화장품',
+                '한국콜마 실적', '한국콜마 신제품',
+                '한국콜마 주가', '한국콜마 ODM', '콜마비앤에이치',
+                '한국콜마 배당', '한국콜마 투자', '한국콜마 선케어',
+                '한국콜마 윤동한', '한국콜마 실증'],
+    },
+  ];
 
   // 월별 수집 설정 — 다중 키워드로 각 월 집중 수집
   const MONTH_CONFIGS = [
@@ -1725,9 +1752,10 @@ app.get('/api/backfill', async (req, res) => {
     },
   ];
 
+  const BASE_CONFIGS = company === 'kolmar' ? KOLMAR_CONFIGS : MONTH_CONFIGS;
   const CONFIGS = onlyMonth
-    ? MONTH_CONFIGS.filter(c => c.month === onlyMonth)
-    : MONTH_CONFIGS;
+    ? BASE_CONFIGS.filter(c => c.month === onlyMonth)
+    : BASE_CONFIGS;
 
   const delay = ms => new Promise(r => setTimeout(r, ms));
   const seen  = new Set(); // 중복 링크 방지 (전체 세션)
@@ -1735,7 +1763,7 @@ app.get('/api/backfill', async (req, res) => {
   const log_lines = [];
   const lg = msg => { log_lines.push(msg); console.log('[backfill]', msg); };
 
-  lg(`소급 수집 v2 시작 | dryRun: ${dryRun} | 대상 월: ${onlyMonth || '1~5월 전체'}`);
+  lg(`소급 수집 v2 시작 | company: ${company} | dryRun: ${dryRun} | 대상 월: ${onlyMonth || '전체'}`);
 
   // 월별로 순차 수집
   for (const cfg of CONFIGS) {
@@ -1800,6 +1828,7 @@ app.get('/api/backfill', async (req, res) => {
                   pub_date:    article.pubDate.toISOString(),
                   is_new:      false,
                   is_pr:       false,
+                  company:     company,
                 },
                 { onConflict: 'link', ignoreDuplicates: true }
               );
