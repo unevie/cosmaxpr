@@ -782,10 +782,17 @@ async function notifySlack(articles) {
 }
 
 // ─── Naver API ────────────────────────────────────────────────────────────────
-async function fetchNaverNews() {
+// 회사별 검색어 매핑 (company 코드 → 네이버 검색 키워드)
+const SEARCH_QUERIES = {
+  cosmax: '코스맥스',
+  kolmar: '한국콜마',
+};
+
+async function fetchNaverNews(query) {
+  const q = query || process.env.SEARCH_QUERY || '코스맥스';
   try {
     const res = await axios.get('https://openapi.naver.com/v1/search/news.json', {
-      params: { query: process.env.SEARCH_QUERY || '코스맥스', display: 100, sort: 'date' },
+      params: { query: q, display: 100, sort: 'date' },
       headers: {
         'X-Naver-Client-Id':     process.env.NAVER_CLIENT_ID,
         'X-Naver-Client-Secret': process.env.NAVER_CLIENT_SECRET,
@@ -841,6 +848,7 @@ async function saveToSupabase(article) {
         publisher:   article.publisher,
         pub_date:    article.pubDate.toISOString(),
         is_new:      true,
+        company:     article.company || 'cosmax',
       },
       { onConflict: 'link', ignoreDuplicates: true }
     );
@@ -848,29 +856,40 @@ async function saveToSupabase(article) {
 }
 
 async function pollAndProcess() {
-  const items = await fetchNaverNews();
   pollCount++;
   lastPollTime = new Date();
   const newArticles = [];
-  for (const item of items) {
-    const link = item.originallink || item.link;
-    if (articlesMap.has(link)) continue;
-    const article = {
-      id:          `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      title:       stripHtml(item.title),
-      link,
-      naverLink:   item.link,
-      description: stripHtml(item.description),
-      publisher:   extractPublisher(item.originallink || item.link),
-      pubDate:     new Date(item.pubDate),
-      isNew:       true,
-      isPR:        false,
-      createdAt:   new Date(),
-    };
-    articlesMap.set(link, article);
-    newArticles.push(article);
-    await saveToSupabase(article);
+
+  // 회사별(코스맥스 + 한국콜마)로 각각 수집
+  for (const [company, query] of Object.entries(SEARCH_QUERIES)) {
+    const items = await fetchNaverNews(query);
+    for (const item of items) {
+      const link = item.originallink || item.link;
+      // 같은 링크라도 다른 회사 키워드로 잡힐 수 있으나, upsert(onConflict:link)로
+      // 중복 저장은 방지됨. 메모리 맵은 코스맥스 기준으로만 유지(대시보드 실시간 표시용).
+      if (articlesMap.has(link)) continue;
+      const article = {
+        id:          `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        title:       stripHtml(item.title),
+        link,
+        naverLink:   item.link,
+        description: stripHtml(item.description),
+        publisher:   extractPublisher(item.originallink || item.link),
+        pubDate:     new Date(item.pubDate),
+        isNew:       true,
+        isPR:        false,
+        company,
+        createdAt:   new Date(),
+      };
+      await saveToSupabase(article);
+      // 실시간 화면/알림은 코스맥스 기준 유지 (기존 동작 보존)
+      if (company === 'cosmax') {
+        articlesMap.set(link, article);
+        newArticles.push(article);
+      }
+    }
   }
+
   if (newArticles.length > 0) {
     log(`🆕 신규 기사 ${newArticles.length}건 (누적: ${articlesMap.size}건)`);
     broadcast({ type: 'new_articles', articles: newArticles });
@@ -1497,7 +1516,7 @@ function normalizePublisher(name, link) {
 
 // ─── GET /api/dashboard/timeline ─────────────────────────────────────────────
 app.get('/api/dashboard/timeline', async (req, res) => {
-  const { period = 'daily', dateFrom, dateTo, publisher } = req.query;
+  const { period = 'daily', dateFrom, dateTo, publisher, company = 'cosmax' } = req.query;
 
   const from = dateFrom || new Date(Date.now() - 30 * 86400000).toISOString().slice(0,10);
   const to   = dateTo   || new Date().toISOString().slice(0,10);
@@ -1509,6 +1528,7 @@ app.get('/api/dashboard/timeline', async (req, res) => {
       const { data: pubRows, error: pubErr } = await supabase.rpc('get_publishers', {
         p_from: from + 'T00:00:00+00:00',
         p_to:   to   + 'T23:59:59+00:00',
+        p_company: company,
       });
       if (pubErr) throw pubErr;
 
@@ -1530,6 +1550,7 @@ app.get('/api/dashboard/timeline', async (req, res) => {
         p_to:         to   + 'T23:59:59+00:00',
         p_period:     period,
         p_publishers: rawValues,
+        p_company:    company,
       });
       if (error) throw error;
 
@@ -1550,6 +1571,7 @@ app.get('/api/dashboard/timeline', async (req, res) => {
       p_from:   from + 'T00:00:00+00:00',
       p_to:     to   + 'T23:59:59+00:00',
       p_period: period,
+      p_company: company,
     });
     if (error) throw error;
 
@@ -1579,7 +1601,7 @@ app.get('/api/dashboard/timeline', async (req, res) => {
 
 // ─── GET /api/dashboard/publishers ───────────────────────────────────────────
 app.get('/api/dashboard/publishers', async (req, res) => {
-  const { dateFrom, dateTo, limit = 30 } = req.query;
+  const { dateFrom, dateTo, limit = 30, company = 'cosmax' } = req.query;
 
   const from = dateFrom || new Date(Date.now() - 30 * 86400000).toISOString().slice(0,10);
   const to   = dateTo   || new Date().toISOString().slice(0,10);
@@ -1589,6 +1611,7 @@ app.get('/api/dashboard/publishers', async (req, res) => {
     const { data, error } = await supabase.rpc('get_publishers', {
       p_from: from + 'T00:00:00+00:00',
       p_to:   to   + 'T23:59:59+00:00',
+      p_company: company,
     });
     if (error) throw error;
 
