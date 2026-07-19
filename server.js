@@ -1513,7 +1513,12 @@ app.post('/api/pr-refresh', async (req, res) => {
 });
 
 app.get('/api/press-releases', (req, res) => {
-  const sorted = [...pressReleases].sort((a,b) => new Date(b.date) - new Date(a.date));
+  const { dateFrom, dateTo } = req.query;
+  let list = [...pressReleases];
+  // 선택 기간 필터 (대시보드에서 월 선택 시 해당 범위만)
+  if (dateFrom) list = list.filter(p => p.date >= dateFrom);
+  if (dateTo)   list = list.filter(p => p.date <= dateTo);
+  const sorted = list.sort((a,b) => new Date(b.date) - new Date(a.date));
   res.json(sorted.map(p => ({
     ...p,
     color: PR_CATEGORIES[p.cat] || '#6B7280',
