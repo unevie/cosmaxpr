@@ -1149,6 +1149,14 @@ function classifyPR(title) {
   return best[1] > 0 ? best[0] : '경영/IR/ESG';
 }
 
+// 보도자료 매칭에서 제외할 흔한 단어 (변별력 없음 → 과다매칭 유발)
+const PR_STOPWORDS = new Set([
+  '코스맥스','코스맥스BTI','코스맥스바이오','글로벌','기술','개발','출시','제품','화장품',
+  '기업','산업','시장','세계','한국','수상','대상','인증','확대','강화','진출','공개','발표',
+  '브랜드','뷰티','성장','전략','솔루션','서비스','비즈니스','파트너','고객','사업','경영',
+  '최고','신규','혁신','최초','업계','국내','해외','바이오','헬스','신제품','뉴스','기사',
+]);
+
 function matchPR(article) {
   const aDate  = new Date(article.pubDate);
   const aTitle = (article.title||'').replace(/<[^>]+>/g,'');
@@ -1159,13 +1167,20 @@ function matchPR(article) {
   for (const pr of pressReleases) {
     const prDate = new Date(pr.date);
     const diffDays = Math.abs((aDate - prDate) / 86400000);
-    if (diffDays > 7) continue;
-    const prWords = pr.title.match(/[가-힣]{3,}|[A-Za-z]{3,}/g) || [];
-    // 보도자료 핵심 단어가 기사 제목에 직접 2개 이상 → 즉시 매칭
-    const titleMatchCount = prWords.filter(w => aTitle.includes(w)).length;
-    if (titleMatchCount >= 2) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
-    // 기사 제목+부제 전체에서 3개 이상 매칭
-    if (prWords.filter(w => searchText.includes(w)).length >= 3)
+    if (diffDays > 4) continue;   // 날짜 근접 강화 (7일 → 4일)
+
+    // 보도자료 제목에서 변별력 있는 핵심 단어만 추출 (불용어 + 짧은 단어 제외)
+    const prWords = (pr.title.match(/[가-힣]{2,}|[A-Za-z]{3,}|\d{2,}/g) || [])
+      .filter(w => !PR_STOPWORDS.has(w) && w.length >= 2);
+    if (prWords.length < 2) continue;  // 변별 단어가 너무 적은 보도자료는 스킵
+
+    // 기사 '제목'에 핵심 단어 3개 이상 겹침 → 강한 매칭
+    const titleHits = prWords.filter(w => aTitle.includes(w)).length;
+    if (titleHits >= 3) return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
+
+    // 제목+부제 전체에서 핵심 단어의 절반 이상 && 최소 4개 겹침 → 매칭
+    const textHits = prWords.filter(w => searchText.includes(w)).length;
+    if (textHits >= 4 && textHits >= prWords.length * 0.5)
       return { prTitle: pr.title, prDate: pr.date, cat: pr.cat };
   }
   return null;
