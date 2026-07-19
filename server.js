@@ -1134,7 +1134,10 @@ const PR_HISTORY = [
   {date:'2026-05-28',entity:'Cosmax',title:'코스맥스 이노베이션 라이브러리 글로벌 혁신 성과로 확대 개편',cat:'혁신 기술'},
   {date:'2026-06-05',entity:'Cosmax Group',title:'코스맥스 파트너사 원료 제안 프로세스 디지털화 공급망 다변화 속도',cat:'파트너십/MOU'},
   {date:'2026-06-09',entity:'Cosmax Group',title:'코스맥스 가톨릭대와 코스메디컬·뷰티AI 인재 양성 맞손',cat:'공동 연구'},
-  {date:'2026-06-15',entity:'Cosmax Group',title:'코스맥스 스낵형 건기식에 베팅…젤리·액상스틱 CAPA 2배 키웠다',cat:'생산 인프라'},
+  {date:'2026-06-15',entity:'Cosmax Group',title:'코스맥스그룹 건기식 스낵 제형 강화 수출 대응력 높인다',cat:'혁신 기술'},
+  {date:'2026-06-19',entity:'Cosmax Group',title:'마지막 한 방울까지 코스맥스네오 잔량 최소화 혁신 용기로 패키지상 수상',cat:'대외 수상/행사'},
+  {date:'2026-06-23',entity:'Cosmax Group',title:'코스맥스그룹 HNC 2026 참가 혁신 소재 제형으로 글로벌 시장 공략 가속',cat:'대외 수상/행사'},
+  {date:'2026-07-07',entity:'Cosmax',title:'코스맥스 글로벌 선케어 경쟁력 강화 국제기관서 ISO 23675 SPF 평가 역량 인정',cat:'인증/규제/표준'},
 ];
 
 let pressReleases = [...PR_HISTORY];
