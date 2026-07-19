@@ -1750,13 +1750,23 @@ app.get('/api/rematch-pr', async (req, res) => {
 
     let matched = 0, changed = 0;
     const toTrue = [], toFalse = [];
+    const samples = [];
     for (const row of all) {
-      const hit = !!matchPR({
+      const m = matchPR({
         title:       row.title,
         description: row.description,
         pubDate:     row.pub_date,
       });
-      if (hit) matched++;
+      const hit = !!m;
+      if (hit) {
+        matched++;
+        if (samples.length < 40) {
+          samples.push({
+            기사: (row.title||'').slice(0, 40),
+            매칭보도자료: (m.prTitle||'').slice(0, 40),
+          });
+        }
+      }
       if (hit && !row.is_pr) toTrue.push(row.id);
       if (!hit && row.is_pr) toFalse.push(row.id);
     }
@@ -1778,9 +1788,11 @@ app.get('/api/rematch-pr', async (req, res) => {
       ok: true, dryRun,
       전체기사: all.length,
       보도자료매칭: matched,
+      비율: Math.round(matched / all.length * 100) + '%',
       변경예정: changed,
       신규true: toTrue.length,
       해제false: toFalse.length,
+      샘플: dryRun ? samples : undefined,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
