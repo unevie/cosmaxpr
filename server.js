@@ -886,6 +886,7 @@ async function saveToSupabase(article) {
         publisher:   article.publisher,
         pub_date:    article.pubDate.toISOString(),
         is_new:      true,
+        is_pr:       article.isPR || false,
         company:     article.company || 'cosmax',
       },
       { onConflict: 'link', ignoreDuplicates: true }
@@ -919,6 +920,8 @@ async function pollAndProcess() {
         company,
         createdAt:   new Date(),
       };
+      // 코스맥스 기사만 보도자료 매칭 (한국콜마는 이력 없음)
+      if (company === 'cosmax' && matchPR(article)) article.isPR = true;
       await saveToSupabase(article);
       // 실시간 화면/알림은 코스맥스 기준 유지 (기존 동작 보존)
       if (company === 'cosmax') {
@@ -1707,6 +1710,68 @@ app.get('/api/dashboard/publishers', async (req, res) => {
 // GET /api/backfill               → 실제 Supabase 저장
 // GET /api/backfill?month=1       → 특정 월만 재수집 (1~5)
 // ══════════════════════════════════════════════════════════════════════════════
+// ─── GET /api/rematch-pr — 기존 코스맥스 기사 전체 보도자료 재판정 ────────────
+// DB의 코스맥스 기사를 matchPR로 다시 판정해 is_pr 갱신 (일회성/수시 실행)
+app.get('/api/rematch-pr', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Supabase 미연결' });
+  const dryRun = req.query.dryRun === 'true';
+  try {
+    // 코스맥스 기사 전체를 페이지네이션으로 로드
+    let all = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await supabase
+        .from('news_articles')
+        .select('id, title, description, pub_date, is_pr, company')
+        .eq('company', 'cosmax')
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+
+    let matched = 0, changed = 0;
+    const toTrue = [], toFalse = [];
+    for (const row of all) {
+      const hit = !!matchPR({
+        title:       row.title,
+        description: row.description,
+        pubDate:     row.pub_date,
+      });
+      if (hit) matched++;
+      if (hit && !row.is_pr) toTrue.push(row.id);
+      if (!hit && row.is_pr) toFalse.push(row.id);
+    }
+    changed = toTrue.length + toFalse.length;
+
+    if (!dryRun) {
+      // 배치 UPDATE (id 목록으로)
+      for (let i = 0; i < toTrue.length; i += 500) {
+        const batch = toTrue.slice(i, i + 500);
+        await supabase.from('news_articles').update({ is_pr: true }).in('id', batch);
+      }
+      for (let i = 0; i < toFalse.length; i += 500) {
+        const batch = toFalse.slice(i, i + 500);
+        await supabase.from('news_articles').update({ is_pr: false }).in('id', batch);
+      }
+    }
+
+    res.json({
+      ok: true, dryRun,
+      전체기사: all.length,
+      보도자료매칭: matched,
+      변경예정: changed,
+      신규true: toTrue.length,
+      해제false: toFalse.length,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/backfill', async (req, res) => {
   if (!supabase) return res.status(503).json({ error: 'Supabase 미연결' });
   if (DEMO_MODE)  return res.status(503).json({ error: '데모 모드 — NAVER_CLIENT_ID 없음' });
