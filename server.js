@@ -1556,6 +1556,31 @@ entity: Cosmax/Cosmax Group/Cosmax NBT/Cosmax BIO 중 하나. 최신순 10개.`
   }
 }
 
+
+// ─── Apps Script → 보도자료 수신 ─────────────────────────────────────────────
+app.post('/api/pr-update', (req, res) => {
+  const { items, key } = req.body || {};
+  const SYNC_KEY = process.env.PR_SYNC_KEY || 'cosmax-pr-sync-2026';
+
+  if (key !== SYNC_KEY) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(400).json({ error: 'items required' });
+  }
+
+  // 유효 항목만 필터
+  const valid = items.filter(p =>
+    p.date && p.title && /[가-힣]/.test(p.title) && /^\d{4}-\d{2}/.test(p.date)
+  );
+
+  if (!valid.length) return res.status(400).json({ error: 'no valid items' });
+
+  pressReleases = valid;
+  log('📋 Apps Script 동기화 — ' + valid.length + '건 수신');
+  res.json({ ok: true, total: valid.length });
+});
+
 // ─── 보도자료 API ─────────────────────────────────────────────────────────────
 app.post('/api/pr-refresh', async (req, res) => {
   const before = pressReleases.length;
