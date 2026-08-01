@@ -1138,10 +1138,10 @@ const PR_HISTORY = [
   {date:'2026-06-19',entity:'Cosmax Group',title:'마지막 한 방울까지 코스맥스네오 잔량 최소화 혁신 용기로 패키지상 수상',cat:'대외 수상/행사'},
   {date:'2026-06-23',entity:'Cosmax Group',title:'코스맥스그룹 HNC 2026 참가 혁신 소재 제형으로 글로벌 시장 공략 가속',cat:'대외 수상/행사'},
   {date:'2026-07-07',entity:'Cosmax',title:'코스맥스 글로벌 선케어 경쟁력 강화 국제기관서 ISO 23675 SPF 평가 역량 인정',cat:'인증/규제/표준'},
-  {date:'2026-07-13',entity:'Cosmax Group',title:'코스맥스 日 미용시장에 AI 처방 심는다 맞춤형 화장품 해외 확장 첫발',cat:'파트너십/MOU'},
-  {date:'2026-07-22',entity:'Cosmax PET',title:'코스맥스펫 증평 신공장 가동 기존 대비 4배 확장',cat:'생산 인프라'},
-  {date:'2026-07-24',entity:'Cosmax Group',title:'코스맥스 고객사 수출입 지원 플랫폼 가동 K뷰티 직수출 문턱 낮춘다',cat:'파트너십/MOU'},
-  {date:'2026-07-27',entity:'Cosmax Group',title:'K뷰티 넘어 디지털 혁신까지 코스맥스 소셜아이어워드 2년 연속 수상',cat:'경영/IR/ESG'},
+  {date:'2026-07-13',entity:'Cosmax Group',title:"코스맥스, 日 미용시장에 AI 처방 심는다…맞춤형 화장품 해외 확장 '첫발'",cat:'파트너십/MOU'},
+  {date:'2026-07-22',entity:'Cosmax PET',title:"코스맥스펫, 증평 신공장 가동…기존 대비 '4배' 확대",cat:'생산 인프라'},
+  {date:'2026-07-24',entity:'Cosmax Group',title:'코스맥스, 고객사 수출입 지원 플랫폼 가동…K뷰티 직수출 문턱 낮춘다',cat:'파트너십/MOU'},
+  {date:'2026-07-27',entity:'Cosmax Group',title:"K-뷰티 넘어 디지털 혁신까지'…코스맥스, 소셜아이어워드 2년 연속 수상",cat:'경영/IR/ESG'},
 ];
 
 let pressReleases = [...PR_HISTORY];
@@ -1427,6 +1427,54 @@ app.post('/api/analyze', async (req, res) => {
 });
 
 // ─── Claude web_search로 신규 보도자료 수집 ──────────────────────────────────
+
+// ─── 구글시트 자동 로드 ────────────────────────────────────────────────────────
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (const ch of line) {
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+async function fetchPRsFromSheet() {
+  // 보도자료 탭 (gid=604523621), B2:I200 범위
+  const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1RXx-p-VHXx-NcnJVzoAko0M_GaRjaXtMq7Etj_5xjdA/export?format=csv&gid=604523621&range=B2:I200';
+  try {
+    const res = await axios.get(SHEET_URL, {
+      timeout: 15000,
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    const lines = res.data.split('\n').slice(1); // 헤더(B2행) 제외
+    const items = [];
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const cols = parseCSVLine(line);
+      // B2:I200 범위 기준 컬럼 (0-indexed):
+      // 0:No  1:날짜  2:연도  3:월  4:법인구분  5:제목  6:최종카테고리  7:담당자
+      const date   = (cols[1] || '').replace(/"/g, '').trim();
+      const entity = (cols[4] || '').replace(/"/g, '').trim();
+      const title  = (cols[5] || '').replace(/"/g, '').trim();
+      const cat    = (cols[6] || '').replace(/"/g, '').trim() || classifyPR(title);
+      if (!date || !title || !/[가-힣]/.test(title)) continue;
+      if (!/^\d{4}-\d{2}/.test(date)) continue;
+      items.push({ date, entity, title, cat });
+    }
+    if (items.length > 0) {
+      pressReleases = items;
+      log('📋 구글시트 보도자료 ' + items.length + '건 로드 완료');
+    } else {
+      log('📋 구글시트 응답 비어있음 → PR_HISTORY 유지');
+    }
+  } catch (e) {
+    log('📋 구글시트 로드 실패 → PR_HISTORY 유지: ' + e.message);
+  }
+}
+
 async function fetchPRsWithClaude() {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) { log('PR 검색: ANTHROPIC_API_KEY 없음'); return; }
@@ -1511,7 +1559,7 @@ entity: Cosmax/Cosmax Group/Cosmax NBT/Cosmax BIO 중 하나. 최신순 10개.`
 // ─── 보도자료 API ─────────────────────────────────────────────────────────────
 app.post('/api/pr-refresh', async (req, res) => {
   const before = pressReleases.length;
-  await fetchPRsWithClaude();
+  await fetchPRsFromSheet();
   const added = pressReleases.length - before;
   res.json({ ok: true, total: pressReleases.length, added });
 });
@@ -2273,8 +2321,8 @@ app.listen(PORT, async () => {
   } else {
     console.log(`📰 검색 키워드: "${process.env.SEARCH_QUERY || '코스맥스'}"`);
     await loadFromSupabase();
-    await fetchPRsWithClaude();
-    cron.schedule('0 0,3,6,9 * * 1-5', fetchPRsWithClaude);
+    await fetchPRsFromSheet();
+    cron.schedule('0 0,3,6,9 * * 1-5', fetchPRsFromSheet); // 평일 09·12·15·18시 KST
     await pollAndProcess();
     cron.schedule('* * * * *', pollAndProcess);
     console.log('🕐 1분 간격 자동 폴링 활성화\n');
