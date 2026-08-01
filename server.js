@@ -1138,6 +1138,10 @@ const PR_HISTORY = [
   {date:'2026-06-19',entity:'Cosmax Group',title:'마지막 한 방울까지 코스맥스네오 잔량 최소화 혁신 용기로 패키지상 수상',cat:'대외 수상/행사'},
   {date:'2026-06-23',entity:'Cosmax Group',title:'코스맥스그룹 HNC 2026 참가 혁신 소재 제형으로 글로벌 시장 공략 가속',cat:'대외 수상/행사'},
   {date:'2026-07-07',entity:'Cosmax',title:'코스맥스 글로벌 선케어 경쟁력 강화 국제기관서 ISO 23675 SPF 평가 역량 인정',cat:'인증/규제/표준'},
+  {date:'2026-07-13',entity:'Cosmax Group',title:'코스맥스 日 미용시장에 AI 처방 심는다 맞춤형 화장품 해외 확장 첫발',cat:'파트너십/MOU'},
+  {date:'2026-07-22',entity:'Cosmax PET',title:'코스맥스펫 증평 신공장 가동 기존 대비 4배 확장',cat:'생산 인프라'},
+  {date:'2026-07-24',entity:'Cosmax Group',title:'코스맥스 고객사 수출입 지원 플랫폼 가동 K뷰티 직수출 문턱 낮춘다',cat:'파트너십/MOU'},
+  {date:'2026-07-27',entity:'Cosmax Group',title:'K뷰티 넘어 디지털 혁신까지 코스맥스 소셜아이어워드 2년 연속 수상',cat:'경영/IR/ESG'},
 ];
 
 let pressReleases = [...PR_HISTORY];
