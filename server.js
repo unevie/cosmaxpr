@@ -1262,7 +1262,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:5500',
 ];
-app.use('/api/dashboard', (req, res, next) => {
+const corsMiddleware = (req, res, next) => {
   const origin = req.headers.origin;
   if (ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -1271,7 +1271,9 @@ app.use('/api/dashboard', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
-});
+};
+app.use('/api/dashboard', corsMiddleware);
+app.use('/api/press-releases', corsMiddleware);
 
 // ─── SSE endpoint ─────────────────────────────────────────────────────────────
 app.get('/api/stream', (req, res) => {
