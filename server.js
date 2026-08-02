@@ -111,7 +111,8 @@ const PUBLISHER_DOMAINS = {
   'getnews.co.kr':          { name:'글로벌이코노믹',type:'경제/IT' },
   'joseilbo.com':           { name:'조세일보',     type:'경제/IT' },
   'fetv.co.kr':             { name:'FETV',         type:'경제/IT' },
-  'm-i.kr':                 { name:'마켓인사이트', type:'경제/IT' },
+  'm-i.kr':                 { name:'매일일보',     type:'종합일간지' },
+  'marketinsight.hankyung.com': { name:'마켓인사이트', type:'경제/IT' },
   // ── 인터넷신문 ───────────────────────────────────────────────────────────
   'ohmynews.com':           { name:'오마이뉴스',   type:'인터넷신문' },
   'mediatoday.co.kr':       { name:'미디어오늘',   type:'인터넷신문' },
@@ -656,7 +657,7 @@ const PUBLISHER_NAME_TYPE = {
   'POLINEWS':'인터넷신문','NEWSMAP':'인터넷신문','KOREAREPORT':'인터넷신문','WEEKLYTODAY':'인터넷신문','POINTE':'인터넷신문','OKFASHION':'매거진/전문지',
   // ── 종합일간지 ──
   'KUKINEWS':'종합일간지','MUNHWA':'종합일간지','SEOUL':'종합일간지','HANKOOKILBO':'종합일간지',
-  'NAEIL':'종합일간지','KMIB':'종합일간지','조선일보':'종합일간지','중앙일보':'종합일간지',
+  'NAEIL':'종합일간지','KMIB':'종합일간지','조선일보':'종합일간지','중앙일보':'종합일간지','매일일보':'종합일간지',
   '동아일보':'종합일간지','한겨레':'종합일간지','경향신문':'종합일간지','서울신문':'종합일간지',
   '국민일보':'종합일간지','문화일보':'종합일간지','한국일보':'종합일간지','세계일보':'종합일간지',
   '내일신문':'종합일간지',
