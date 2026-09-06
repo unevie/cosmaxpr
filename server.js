@@ -1146,6 +1146,43 @@ const PR_HISTORY = [
 ];
 
 let pressReleases = [...PR_HISTORY];
+// ─── 보도자료 Supabase 영구 저장 (재시작 후에도 유지) ────────────────────────
+// 테이블: press_releases_cache (id=1 단일 행에 JSON 통째 저장)
+async function loadPRsFromSupabase() {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase
+      .from('press_releases_cache')
+      .select('items, updated_at')
+      .eq('id', 1)
+      .single();
+    if (error || !data || !data.items) return; // 테이블 없으면 조용히 통과
+    const items = JSON.parse(data.items);
+    if (Array.isArray(items) && items.length > 0) {
+      pressReleases = items;
+      log('📋 Supabase에서 보도자료 ' + items.length + '건 복원 (' + (data.updated_at || '') + ')');
+    }
+  } catch (e) {
+    log('📋 보도자료 Supabase 로드 실패 → PR_HISTORY 유지: ' + e.message);
+    // 실패해도 pressReleases = PR_HISTORY 그대로 유지 → 기존 동작 보존
+  }
+}
+
+async function savePRsToSupabase(items) {
+  if (!supabase) return;
+  try {
+    await supabase.from('press_releases_cache').upsert(
+      { id: 1, items: JSON.stringify(items), updated_at: new Date().toISOString() },
+      { onConflict: 'id' }
+    );
+    log('📋 Supabase에 보도자료 ' + items.length + '건 저장');
+  } catch (e) {
+    log('📋 보도자료 Supabase 저장 실패: ' + e.message);
+    // 저장 실패해도 pressReleases 메모리는 정상 → 기존 동작 보존
+  }
+}
+
+
 
 function classifyPR(title) {
   const t = title.replace(/[^가-힣a-zA-Z0-9 ]/g, ' ');
@@ -1591,6 +1628,7 @@ app.post('/api/pr-update', (req, res) => {
 
   pressReleases = valid;
   log('📋 Apps Script 동기화 — ' + valid.length + '건 수신');
+  savePRsToSupabase(valid); // Supabase 영구 저장 (fire-and-forget)
   res.json({ ok: true, total: valid.length });
 });
 
@@ -2359,6 +2397,7 @@ app.listen(PORT, async () => {
   } else {
     console.log(`📰 검색 키워드: "${process.env.SEARCH_QUERY || '코스맥스'}"`);
     await loadFromSupabase();
+    await loadPRsFromSupabase();  // 재시작 후 보도자료 복원
     await fetchPRsFromSheet();
     cron.schedule('0 0,3,6,9 * * 1-5', fetchPRsFromSheet); // 평일 09·12·15·18시 KST
     await pollAndProcess();
